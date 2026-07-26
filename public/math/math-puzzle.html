@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Rompecabezas de Sumas</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f1a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    canvas#bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+
+    #back-btn {
+      position: fixed; top: 18px; left: 22px; z-index: 20;
+      color: #64748b; text-decoration: none; font-size: 15px;
+      letter-spacing: 1px; transition: color .15s;
+    }
+    #back-btn:hover { color: #FFD700; }
+
+    /* ── HUD ─────────────────────────────────────────────────── */
+    #hud {
+      position: relative; z-index: 1;
+      display: flex; gap: 60px; align-items: center; margin-bottom: 28px;
+    }
+    .hud-box { text-align: center; }
+    .hud-label { color: #64748b; font-size: 12px; letter-spacing: 2px; }
+    .hud-value { color: #FFD700; font-size: 30px; font-weight: bold;
+      text-shadow: 0 0 18px rgba(255,215,0,.5); }
+
+    /* ── Equation cards ──────────────────────────────────────── */
+    #equations-wrap {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; gap: 16px;
+      margin-bottom: 24px;
+    }
+    .eq-card {
+      background: rgba(255,255,255,0.04);
+      border: 1.5px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      padding: 18px 36px;
+      display: flex; align-items: center; justify-content: center; gap: 18px;
+      transition: border-color .3s, background .3s;
+    }
+    .eq-card.flash-correct {
+      border-color: #22c55e;
+      background: rgba(34,197,94,0.1);
+    }
+
+    .eq-num {
+      font-size: 40px; font-weight: bold; color: #fff;
+      min-width: 52px; text-align: center;
+      text-shadow: 0 0 12px rgba(255,255,255,.2);
+    }
+    .eq-op {
+      font-size: 40px; font-weight: bold; color: #FFD700;
+      text-shadow: 0 0 14px rgba(255,215,0,.5);
+      min-width: 28px; text-align: center;
+    }
+    .eq-slot {
+      min-width: 70px; height: 70px;
+      border: 3px dashed rgba(255,255,255,0.4);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px; font-weight: bold; color: #fff;
+      transition: border-color .15s, background .15s;
+    }
+    .eq-slot:hover:not(.filled) { border-color: #FFD700; }
+    .eq-slot.slot-hover { border-color: #FFD700; }
+    .eq-slot.filled {
+      border: 3px solid #22c55e;
+      background: rgba(34,197,94,0.2);
+      cursor: default;
+    }
+
+    /* ── Tile pool ───────────────────────────────────────────── */
+    #pool-label {
+      position: relative; z-index: 1;
+      color: #64748b; font-size: 12px; letter-spacing: 2px;
+      margin-bottom: 12px; text-align: center;
+    }
+    #tile-pool {
+      position: relative; z-index: 1;
+      display: flex; gap: 14px; flex-wrap: wrap;
+      justify-content: center; margin-bottom: 24px;
+    }
+    .tile {
+      width: 70px; height: 70px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #7c3aed, #2563eb);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px; font-weight: bold; color: #fff;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s, background .15s;
+      box-shadow: 0 4px 16px rgba(0,0,0,.4);
+      position: relative;
+    }
+    .tile:hover { transform: scale(1.05); }
+    .tile.selected {
+      background: linear-gradient(135deg, #FFD700, #f59e0b);
+      color: #0f0f1a;
+      box-shadow: 0 0 0 3px #FFD700, 0 4px 20px rgba(255,215,0,.5);
+    }
+    .tile.shake {
+      animation: shake .4s ease;
+    }
+    .tile.hidden { visibility: hidden; pointer-events: none; }
+
+    @keyframes shake {
+      0%,100%{transform:translateX(0)}
+      15%{transform:translateX(-10px)}
+      30%{transform:translateX(10px)}
+      45%{transform:translateX(-8px)}
+      60%{transform:translateX(8px)}
+      75%{transform:translateX(-5px)}
+      90%{transform:translateX(5px)}
+    }
+
+    /* ── Hint ────────────────────────────────────────────────── */
+    #hint {
+      position: relative; z-index: 1;
+      color: #64748b; font-size: 12px; letter-spacing: 1.5px;
+      text-align: center; max-width: 440px;
+    }
+
+    /* ── Float score ─────────────────────────────────────────── */
+    .float-score {
+      position: fixed; z-index: 10;
+      color: #FFD700; font-size: 26px; font-weight: bold;
+      text-shadow: 0 0 16px rgba(255,215,0,.7);
+      pointer-events: none;
+      animation: floatUp 1.2s ease forwards;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+    }
+    @keyframes floatUp {
+      0%   { opacity:1; transform: translate(-50%,-50%); }
+      100% { opacity:0; transform: translate(-50%, -160px); }
+    }
+
+    /* ── Start screen ────────────────────────────────────────── */
+    #start-screen {
+      position: fixed; inset: 0; z-index: 30;
+      background: rgba(15,15,26,0.92);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 20px;
+    }
+    #start-screen .title {
+      font-size: 42px; font-weight: bold; color: #FFD700;
+      text-shadow: 0 0 30px rgba(255,215,0,.6);
+      letter-spacing: 2px; text-align: center;
+    }
+    #start-screen .desc {
+      color: #94a3b8; font-size: 16px; text-align: center;
+      max-width: 380px; line-height: 1.6; letter-spacing: .5px;
+    }
+    #btn-start {
+      margin-top: 10px;
+      background: linear-gradient(135deg, #FFD700, #f59e0b);
+      color: #0f0f1a; font-family: inherit;
+      font-size: 20px; font-weight: bold; letter-spacing: 2px;
+      border: none; border-radius: 50px;
+      padding: 16px 52px; cursor: pointer;
+      box-shadow: 0 0 30px rgba(255,215,0,.4);
+      transition: transform .15s, box-shadow .15s;
+    }
+    #btn-start:hover { transform: scale(1.05); box-shadow: 0 0 40px rgba(255,215,0,.6); }
+
+    /* ── Rules button & overlay ─────────────────────────────────────── */
+    #rules-btn {
+      position: fixed; top: 18px; right: 22px; z-index: 25;
+      width: 38px; height: 38px; border-radius: 50%;
+      background: rgba(255,215,0,0.12); border: 2px solid rgba(255,215,0,0.35);
+      color: #FFD700; font-size: 20px; font-weight: bold;
+      cursor: pointer; transition: background .15s; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #rules-btn:hover { background: rgba(255,215,0,0.28); }
+    #rules-overlay {
+      position: fixed; inset: 0; z-index: 40;
+      background: rgba(15,15,26,.88);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #rules-card {
+      background: rgba(255,255,255,.07);
+      border: 2px solid rgba(255,215,0,.3);
+      border-radius: 24px; padding: 36px 40px;
+      max-width: 440px; text-align: center;
+      display: flex; flex-direction: column; gap: 18px;
+    }
+    #rules-card h2 {
+      color: #FFD700; font-size: 22px; letter-spacing: 3px;
+    }
+    #rules-card p {
+      color: #e2e8f0; font-size: 15px; line-height: 1.8;
+      white-space: pre-line; letter-spacing: .5px;
+    }
+    #rules-close {
+      background: linear-gradient(90deg,#FFD700,#F59E0B);
+      color: #1a1a1a; font-size: 16px; font-weight: bold;
+      border: none; border-radius: 30px; padding: 10px 32px;
+      cursor: pointer; letter-spacing: 1px; align-self: center;
+    }
+    #rules-close:hover { opacity: .88; }
+  </style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+  <!-- Rules button -->
+  <button id="rules-btn" onclick="toggleRules()">?</button>
+
+  <!-- Rules overlay -->
+  <div id="rules-overlay" style="display:none">
+    <div id="rules-card">
+      <h2>📖 CÓMO JUGAR</h2>
+      <p>HAZ CLIC EN UNA FICHA PARA SELECCIONARLA,
+LUEGO HAZ CLIC EN EL ESPACIO EN BLANCO DONDE DEBE IR.
+¡COMPLETA LAS 3 ECUACIONES PARA GANAR PUNTOS!</p>
+      <button id="rules-close" onclick="toggleRules()">✕ CERRAR</button>
+    </div>
+  </div>
+
+
+<a href="index.html" id="back-btn">← VOLVER</a>
+
+<!-- Start screen -->
+<div id="start-screen" style="display:none">
+  <div class="title">🧩 ROMPECABEZAS DE SUMAS</div>
+  <div class="desc">
+    APARECEN 3 SUMAS CON UN NÚMERO FALTANTE.<br>
+    SELECCIONA UNA FICHA Y COLÓCALA EN EL LUGAR CORRECTO.<br>
+    ¡COMPLETA LAS 3 PARA GANAR PUNTOS!
+  </div>
+  <button id="btn-start">▶ COMENZAR</button>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-box">
+    <div class="hud-label">PUNTAJE</div>
+    <div class="hud-value" id="hud-score">0</div>
+  </div>
+  <div class="hud-box">
+    <div class="hud-label">NIVEL</div>
+    <div class="hud-value" id="hud-level">1</div>
+  </div>
+  <div class="hud-box">
+    <div class="hud-label">MEJOR</div>
+    <div class="hud-value" id="hud-best">0</div>
+  </div>
+</div>
+
+<!-- Equations -->
+<div id="equations-wrap"></div>
+
+<!-- Tile pool -->
+<div id="pool-label">FICHAS DISPONIBLES</div>
+<div id="tile-pool"></div>
+
+<!-- Hint -->
+<div id="hint">SELECCIONA UNA FICHA Y COLÓCALA EN EL LUGAR CORRECTO</div>
+
+<script>
+// ── Starfield ─────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('bg');
+const ctx    = canvas.getContext('2d');
+function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+resize(); window.addEventListener('resize', resize);
+const stars = Array.from({length:140}, () => ({
+  x:Math.random(), y:Math.random(), r:.5+Math.random()*1.5,
+  twinkle:Math.random()*Math.PI*2, speed:.00008+Math.random()*.00015,
+}));
+const floaters = Array.from({length:14}, () => ({
+  text: ['+','=','1','2','3','4','5','6','7','8','9'][Math.floor(Math.random()*11)],
+  x:Math.random(), y:Math.random(), speed:.0001+Math.random()*.0002,
+  size:14+Math.random()*18, alpha:.04+Math.random()*.07,
+}));
+function drawBg(ts) {
+  const W=canvas.width, H=canvas.height;
+  ctx.fillStyle='#0f0f1a'; ctx.fillRect(0,0,W,H);
+  for(const s of stars){
+    s.twinkle+=s.speed*60;
+    ctx.globalAlpha=.4+Math.sin(s.twinkle)*.4;
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(s.x*W, s.y*H, s.r, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.font='bold 16px Arial'; ctx.textAlign='center';
+  for(const f of floaters){
+    f.y-=f.speed; if(f.y<-0.05) f.y=1.05;
+    ctx.globalAlpha=f.alpha;
+    ctx.fillStyle='#FFD700';
+    ctx.font=`bold ${f.size}px Arial`;
+    ctx.fillText(f.text, f.x*W, f.y*H);
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(drawBg);
+}
+requestAnimationFrame(drawBg);
+
+// ── Audio ─────────────────────────────────────────────────────────────────────
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+
+function playClick() {
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.connect(g); g.connect(AC.destination);
+  o.frequency.setValueAtTime(600, AC.currentTime);
+  g.gain.setValueAtTime(0.12, AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime+0.08);
+  o.start(); o.stop(AC.currentTime+0.08);
+}
+
+function playDing() {
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type='sine'; o.connect(g); g.connect(AC.destination);
+  o.frequency.setValueAtTime(880, AC.currentTime);
+  o.frequency.exponentialRampToValueAtTime(1320, AC.currentTime+0.12);
+  g.gain.setValueAtTime(0.25, AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime+0.35);
+  o.start(); o.stop(AC.currentTime+0.35);
+}
+
+function playBuzz() {
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type='sawtooth'; o.connect(g); g.connect(AC.destination);
+  o.frequency.setValueAtTime(150, AC.currentTime);
+  g.gain.setValueAtTime(0.18, AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime+0.25);
+  o.start(); o.stop(AC.currentTime+0.25);
+}
+
+function playFanfare() {
+  const notes=[523,659,784,1047];
+  notes.forEach((freq, i)=>{
+    const t=AC.currentTime + i*0.13;
+    const o=AC.createOscillator(), g=AC.createGain();
+    o.type='sine'; o.connect(g); g.connect(AC.destination);
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t+0.25);
+    o.start(t); o.stop(t+0.25);
+  });
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let score = 0;
+let level = 1;
+let best  = parseInt(localStorage.getItem('puzzle_best') || '0');
+let selectedTileEl = null; // currently selected tile DOM element
+let selectedTileVal = null;
+let puzzleData = []; // [{a, b, answer, missingPos, slotFilled}]
+let tilePool   = []; // [{value, el, used}]
+
+// ── Render helpers ─────────────────────────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('hud-score').textContent = score;
+  document.getElementById('hud-level').textContent = level;
+  document.getElementById('hud-best').textContent  = best;
+}
+
+function rand(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function generatePuzzle() {
+  selectedTileEl  = null;
+  selectedTileVal = null;
+
+  // 3 equations
+  puzzleData = [];
+  for (let i = 0; i < 3; i++) {
+    const a = rand(1, 9);
+    const b = rand(1, 9);
+    const answer = a + b;
+    const missingPos = Math.random() < 0.5 ? 'b' : 'a';
+    puzzleData.push({ a, b, answer, missingPos, slotFilled: false });
+  }
+
+  // Tile pool: 3 correct answers + 2 distractors
+  const correctVals = puzzleData.map(p => p.missingPos === 'b' ? p.b : p.a);
+  const poolSet = new Set(correctVals);
+  while (poolSet.size < 5) {
+    poolSet.add(rand(1, 18));
+  }
+  const shuffled = [...poolSet].sort(() => Math.random() - 0.5);
+  tilePool = shuffled.map(v => ({ value: v, used: false }));
+
+  renderEquations();
+  renderTiles();
+}
+
+function renderEquations() {
+  const wrap = document.getElementById('equations-wrap');
+  wrap.innerHTML = '';
+
+  puzzleData.forEach((eq, idx) => {
+    const card = document.createElement('div');
+    card.className = 'eq-card';
+    card.id = `eq-card-${idx}`;
+
+    const left  = eq.missingPos === 'a' ? makeSlot(idx) : makeNum(eq.a);
+    const plus  = makeOp('+');
+    const right = eq.missingPos === 'b' ? makeSlot(idx) : makeNum(eq.b);
+    const eq_   = makeOp('=');
+    const ans   = makeNum(eq.answer);
+
+    card.appendChild(left);
+    card.appendChild(plus);
+    card.appendChild(right);
+    card.appendChild(eq_);
+    card.appendChild(ans);
+    wrap.appendChild(card);
+  });
+}
+
+function makeNum(n) {
+  const d = document.createElement('div');
+  d.className = 'eq-num';
+  d.textContent = n;
+  return d;
+}
+
+function makeOp(op) {
+  const d = document.createElement('div');
+  d.className = 'eq-op';
+  d.textContent = op;
+  return d;
+}
+
+function makeSlot(eqIdx) {
+  const d = document.createElement('div');
+  d.className = 'eq-slot';
+  d.dataset.eqIdx = eqIdx;
+  d.addEventListener('click', () => onSlotClick(d, eqIdx));
+  d.addEventListener('mouseenter', () => { if (!d.classList.contains('filled')) d.classList.add('slot-hover'); });
+  d.addEventListener('mouseleave', () => d.classList.remove('slot-hover'));
+  return d;
+}
+
+function renderTiles() {
+  const pool = document.getElementById('tile-pool');
+  pool.innerHTML = '';
+  tilePool.forEach((t, i) => {
+    const el = document.createElement('div');
+    el.className = 'tile';
+    el.textContent = t.value;
+    el.dataset.tileIdx = i;
+    if (t.used) el.classList.add('hidden');
+    el.addEventListener('click', () => onTileClick(el, i));
+    t.el = el;
+    pool.appendChild(el);
+  });
+}
+
+// ── Interaction ───────────────────────────────────────────────────────────────
+function onTileClick(el, idx) {
+  if (tilePool[idx].used) return;
+  if (AC.state === 'suspended') AC.resume();
+  playClick();
+
+  // deselect previous
+  if (selectedTileEl) selectedTileEl.classList.remove('selected');
+
+  if (selectedTileEl === el) {
+    // toggle off
+    selectedTileEl  = null;
+    selectedTileVal = null;
+    return;
+  }
+
+  selectedTileEl  = el;
+  selectedTileVal = tilePool[idx].value;
+  el.classList.add('selected');
+}
+
+function onSlotClick(slotEl, eqIdx) {
+  if (puzzleData[eqIdx].slotFilled) return;
+  if (!selectedTileEl) return;
+  if (AC.state === 'suspended') AC.resume();
+
+  const eq = puzzleData[eqIdx];
+  const correctVal = eq.missingPos === 'b' ? eq.b : eq.a;
+
+  if (selectedTileVal === correctVal) {
+    // Correct!
+    playDing();
+    slotEl.textContent = selectedTileVal;
+    slotEl.classList.add('filled');
+    slotEl.classList.remove('slot-hover');
+
+    // hide the tile
+    const tileIdx = parseInt(selectedTileEl.dataset.tileIdx);
+    tilePool[tileIdx].used = true;
+    selectedTileEl.classList.add('hidden');
+    selectedTileEl.classList.remove('selected');
+    selectedTileEl  = null;
+    selectedTileVal = null;
+
+    eq.slotFilled = true;
+
+    // Check all filled
+    if (puzzleData.every(p => p.slotFilled)) {
+      onAllCorrect();
+    }
+  } else {
+    // Wrong
+    playBuzz();
+    const savedEl = selectedTileEl;
+    savedEl.classList.add('shake');
+    savedEl.classList.remove('selected');
+    selectedTileEl  = null;
+    selectedTileVal = null;
+    setTimeout(() => savedEl.classList.remove('shake'), 400);
+  }
+}
+
+function onAllCorrect() {
+  playFanfare();
+
+  // Flash all cards green
+  puzzleData.forEach((_, i) => {
+    document.getElementById(`eq-card-${i}`).classList.add('flash-correct');
+  });
+
+  // Floating score
+  score += 10;
+  if (score > best) {
+    best = score;
+    localStorage.setItem('puzzle_best', best);
+  }
+  updateHUD();
+
+  const fs = document.createElement('div');
+  fs.className = 'float-score';
+  fs.textContent = '+10 PUNTAJE';
+  document.body.appendChild(fs);
+  setTimeout(() => fs.remove(), 1200);
+
+  // New puzzle after delay
+  setTimeout(() => {
+    level++;
+    updateHUD();
+    generatePuzzle();
+  }, 1200);
+}
+
+// ── Start button ──────────────────────────────────────────────────────────────
+document.getElementById('btn-start').addEventListener('click', () => {
+  if (AC.state === 'suspended') AC.resume();
+  document.getElementById('start-screen').style.display = 'none';
+  updateHUD();
+  generatePuzzle();
+});
+
+// Init HUD best
+updateHUD();
+
+  function toggleRules() {
+    const o = document.getElementById('rules-overlay');
+    o.style.display = o.style.display === 'none' ? 'flex' : 'none';
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const o = document.getElementById('rules-overlay');
+      if (o) o.style.display = 'none';
+    }
+  });
+
+  // Auto-start
+  window.addEventListener('load', () => {
+    document.getElementById('start-screen').style.display = 'none';
+    updateHUD();
+    generatePuzzle();
+  });
+</script>
+</body>
+</html>

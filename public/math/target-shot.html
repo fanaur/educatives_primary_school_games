@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>¡Tiro al Blanco!</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+    }
+    .top-bar {
+      display: flex;
+      align-items: center;
+      width: min(800px, 100vw);
+      margin-bottom: 8px;
+      gap: 12px;
+    }
+    #game-wrap {
+      width: min(800px, 100vw);
+    }
+    #game-wrap canvas {
+      width: 100% !important;
+      height: auto !important;
+      display: block;
+    }
+    .back-btn {
+      color: #FFD700;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: bold;
+      background: rgba(255,215,0,0.1);
+      border: 1px solid rgba(255,215,0,0.3);
+      padding: 5px 14px;
+      border-radius: 20px;
+      transition: background 0.15s;
+    }
+    .back-btn:hover { background: rgba(255,215,0,0.2); }
+    h1 { color: #FFD700; font-size: 22px; letter-spacing: 2px; flex: 1; text-align: center; }
+    .spacer { width: 80px; }
+    #game { border: 3px solid #FFD700; border-radius: 10px; display: block; cursor: crosshair; }
+    #controls {
+      color: #888; font-size: 13px; margin-top: 8px;
+      text-align: center; line-height: 1.8;
+    }
+    span { color: #FFD700; font-weight: bold; }
+
+    /* ── Rules button & overlay ─────────────────────────────────────── */
+    #rules-btn {
+      position: fixed; top: 18px; right: 22px; z-index: 25;
+      width: 38px; height: 38px; border-radius: 50%;
+      background: rgba(255,215,0,0.12); border: 2px solid rgba(255,215,0,0.35);
+      color: #FFD700; font-size: 20px; font-weight: bold;
+      cursor: pointer; transition: background .15s; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #rules-btn:hover { background: rgba(255,215,0,0.28); }
+    #rules-overlay {
+      position: fixed; inset: 0; z-index: 40;
+      background: rgba(15,15,26,.88);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #rules-card {
+      background: rgba(255,255,255,.07);
+      border: 2px solid rgba(255,215,0,.3);
+      border-radius: 24px; padding: 36px 40px;
+      max-width: 440px; text-align: center;
+      display: flex; flex-direction: column; gap: 18px;
+    }
+    #rules-card h2 {
+      color: #FFD700; font-size: 22px; letter-spacing: 3px;
+    }
+    #rules-card p {
+      color: #e2e8f0; font-size: 15px; line-height: 1.8;
+      white-space: pre-line; letter-spacing: .5px;
+    }
+    #rules-close {
+      background: linear-gradient(90deg,#FFD700,#F59E0B);
+      color: #1a1a1a; font-size: 16px; font-weight: bold;
+      border: none; border-radius: 30px; padding: 10px 32px;
+      cursor: pointer; letter-spacing: 1px; align-self: center;
+    }
+    #rules-close:hover { opacity: .88; }
+  </style>
+</head>
+<body>
+  <!-- Rules button -->
+  <button id="rules-btn" onclick="toggleRules()">?</button>
+
+  <!-- Rules overlay -->
+  <div id="rules-overlay" style="display:none">
+    <div id="rules-card">
+      <h2>📖 CÓMO JUGAR</h2>
+      <p>MUEVE EL MOUSE PARA APUNTAR.
+HAZ CLIC O PRESIONA ESPACIO PARA DISPARAR.
+REVIENTA EL GLOBO CON LA RESPUESTA CORRECTA.</p>
+      <button id="rules-close" onclick="toggleRules()">✕ CERRAR</button>
+    </div>
+  </div>
+
+  <div class="top-bar">
+    <a class="back-btn" href="index.html">← MENÚ</a>
+    <h1>🎯 ¡TIRO AL BLANCO! 🎯</h1>
+    <div class="spacer"></div>
+  </div>
+  <div id="game-wrap"><canvas id="game" width="800" height="500"></canvas></div>
+  <p id="controls">
+    <span>MUEVE EL MOUSE</span> PARA APUNTAR &nbsp;|&nbsp;
+    <span>CLIC</span> O <span>ESPACIO</span> PARA DISPARAR &nbsp;|&nbsp;
+    ¡REVIENTA EL GLOBO CON LA <span>RESPUESTA CORRECTA</span>!
+  </p>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx    = canvas.getContext('2d');
+const W = 800, H = 500;
+
+// ─── Audio ────────────────────────────────────────────────────────────────────
+const ac = new (window.AudioContext || window.webkitAudioContext)();
+function beep(freq, dur, type = 'sine', vol = 0.25) {
+  if (ac.state === 'suspended') return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.connect(g); g.connect(ac.destination);
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+  o.start(); o.stop(ac.currentTime + dur);
+}
+function sfxShoot() {
+  beep(600, 0.04, 'square', 0.12);
+  setTimeout(() => beep(300, 0.08, 'triangle', 0.08), 30);
+}
+function sfxCorrect() { [523,659,784,1047].forEach((f,i) => setTimeout(() => beep(f,.15), i*80)); }
+function sfxWrong()   { beep(160, 0.35, 'sawtooth', 0.15); }
+function sfxPop()     { beep(800, 0.05); setTimeout(() => beep(400, 0.1), 40); }
+
+// ─── Archer / Bow position ────────────────────────────────────────────────────
+const AX  = 72;   // character top-left x
+const AY  = 400;  // character top-left y  (feet at AY+44 = 444 = ground)
+const BPX = AX + 20; // bow pivot x (hands)
+const BPY = AY + 22; // bow pivot y
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let mouseX = 500, mouseY = 180;
+let bowAngle = -0.6; // initial aim: upper-right
+let arrows = [], balloons = [], particles = [];
+let question = {}, score = 0, lives = 3;
+let gameState = 'playing', celebrating = false, celebTimer = 0;
+let lastShot = 0;
+
+// ─── Input ────────────────────────────────────────────────────────────────────
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  mouseX = (e.clientX - r.left) * (canvas.width  / r.width);
+  mouseY = (e.clientY - r.top)  * (canvas.height / r.height);
+  bowAngle = Math.atan2(mouseY - BPY, mouseX - BPX);
+  ac.resume();
+});
+
+function shoot() {
+  if (gameState !== 'playing' || celebrating) return;
+  const now = Date.now();
+  if (now - lastShot < 500) return;
+  lastShot = now;
+  sfxShoot();
+  const spd = 14;
+  arrows.push({
+    x: BPX + Math.cos(bowAngle) * 18,
+    y: BPY + Math.sin(bowAngle) * 18,
+    vx: Math.cos(bowAngle) * spd,
+    vy: Math.sin(bowAngle) * spd,
+    angle: bowAngle, active: true,
+  });
+}
+
+canvas.addEventListener('click', shoot);
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); shoot(); }
+  if (e.code === 'Enter' && gameState === 'gameover') resetGame();
+  ac.resume();
+});
+
+// ─── Question / Balloons ──────────────────────────────────────────────────────
+const BALLOON_COLORS = ['#EF4444', '#8B5CF6', '#06B6D4'];
+
+function spawnQuestion() {
+  const a = rand(1, 9), b = rand(1, 9), correct = a + b;
+  const ws = new Set();
+  while (ws.size < 2) { const w = rand(2, 18); if (w !== correct) ws.add(w); }
+  question = { a, b, answer: correct };
+
+  const answers  = shuffle([correct, ...ws]);
+  const cols     = shuffle([...BALLOON_COLORS]);
+
+  // Three balloons spread across the right side, at staggered heights
+  const xs = shuffle([280, 450, 640]);
+  balloons = answers.map((num, i) => ({
+    x: xs[i], y: 280 - i * 70,
+    baseX: xs[i],
+    vy: -(0.28 + Math.random() * 0.18),
+    phase: Math.random() * Math.PI * 2,
+    number: num,
+    isCorrect: num === correct,
+    color: cols[i],
+    popped: false, popTimer: 0,
+    r: 34,
+  }));
+}
+
+function resetGame() {
+  score = 0; lives = 3; gameState = 'playing';
+  celebrating = false; celebTimer = 0;
+  arrows = []; particles = [];
+  spawnQuestion();
+}
+
+// ─── Update ───────────────────────────────────────────────────────────────────
+function update() {
+  if (gameState !== 'playing') return;
+  const t = Date.now() / 1000;
+
+  // Balloons float upward + gentle sway
+  for (const b of balloons) {
+    if (b.popped) {
+      if (--b.popTimer <= 0) {
+        b.popped = false;
+        b.y = H + 90;
+        b.x = b.baseX + rand(-20, 20);
+      }
+      continue;
+    }
+    b.y += b.vy;
+    b.x = b.baseX + Math.sin(t * 0.7 + b.phase) * 28;
+    if (b.y < -100) b.y = H + 90; // wrap back from bottom
+  }
+
+  // Arrows
+  for (const a of arrows) {
+    if (!a.active) continue;
+    a.x += a.vx;
+    a.y += a.vy;
+    a.vy += 0.12; // slight arc
+    a.angle = Math.atan2(a.vy, a.vx);
+
+    if (a.x > W + 60 || a.x < -60 || a.y > H + 60 || a.y < -200) {
+      a.active = false; continue;
+    }
+
+    for (const b of balloons) {
+      if (b.popped || !a.active) continue;
+      const dx = a.x - b.x, dy = a.y - b.y;
+      if (dx*dx + dy*dy < (b.r + 5) * (b.r + 5)) {
+        a.active = false;
+        b.popped = true;
+        sfxPop();
+        spawnBurst(b.x, b.y, b.color, 18);
+        if (b.isCorrect) {
+          score += 10;
+          celebrating = true; celebTimer = 130;
+          sfxCorrect();
+          setTimeout(() => { if (gameState === 'playing') spawnQuestion(); }, 1500);
+        } else {
+          lives--;
+          sfxWrong();
+          b.popTimer = 110;
+          if (lives <= 0) gameState = 'gameover';
+        }
+        break;
+      }
+    }
+  }
+  arrows = arrows.filter(a => a.active);
+
+  if (celebrating && --celebTimer <= 0) celebrating = false;
+
+  particles = particles.filter(p => {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.life -= 0.022;
+    return p.life > 0;
+  });
+}
+
+function spawnBurst(x, y, color, n) {
+  for (let i = 0; i < n; i++) {
+    const a = (Math.PI * 2 * i) / n + Math.random() * 0.4;
+    const s = 2 + Math.random() * 5;
+    particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s - 2, life: 1, color, r: 4 + Math.random()*4 });
+  }
+}
+
+// ─── Draw ─────────────────────────────────────────────────────────────────────
+function draw() {
+  // Sky
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#4FC3F7'); sky.addColorStop(1, '#E1F5FE');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+
+  // Clouds
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  [[180, 80, 65], [430, 50, 85], [660, 95, 55], [560, 155, 45]].forEach(([cx,cy,cr]) => drawCloud(cx, cy, cr));
+
+  // Ground
+  ctx.fillStyle = '#56C42A'; ctx.fillRect(0, 445, W, 14);
+  ctx.fillStyle = '#8B5E3C'; ctx.fillRect(0, 459, W, 41);
+  ctx.fillStyle = '#6ED636';
+  for (let gx = 8; gx < W; gx += 18) {
+    ctx.beginPath(); ctx.arc(gx, 447, 5, Math.PI, 0); ctx.fill();
+  }
+
+  // Aiming line (faint dotted)
+  ctx.save();
+  ctx.setLineDash([5, 10]);
+  ctx.strokeStyle = 'rgba(255,255,180,0.18)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(BPX + Math.cos(bowAngle) * 20, BPY + Math.sin(bowAngle) * 20);
+  ctx.lineTo(mouseX, mouseY);
+  ctx.stroke();
+  ctx.restore();
+
+  // Balloons
+  for (const b of balloons) { if (!b.popped) drawBalloon(b); }
+
+  // Archer (character + bow)
+  drawCharacter(AX, AY);
+  drawBow();
+
+  // Arrows in flight
+  for (const a of arrows) drawArrowSprite(a);
+
+  // Cursor crosshair
+  const inCanvas = mouseX > 0 && mouseX < W && mouseY > 58 && mouseY < H;
+  if (inCanvas) {
+    ctx.strokeStyle = 'rgba(255,255,100,0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(mouseX, mouseY, 9, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(mouseX - 14, mouseY); ctx.lineTo(mouseX + 14, mouseY); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(mouseX, mouseY - 14); ctx.lineTo(mouseX, mouseY + 14); ctx.stroke();
+  }
+
+  // Particles
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  drawHUD();
+  if (gameState === 'gameover') drawGameOver();
+}
+
+function drawCloud(cx, cy, r) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r*.50, 0, Math.PI*2);
+  ctx.arc(cx+r*.45, cy-r*.10, r*.38, 0, Math.PI*2);
+  ctx.arc(cx-r*.32, cy+r*.10, r*.30, 0, Math.PI*2);
+  ctx.arc(cx+r*.10, cy-r*.28, r*.30, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function drawBalloon(b) {
+  const { x: bx, y: by, r: br, color } = b;
+  const t = Date.now() / 1000;
+
+  // String (wiggles slightly)
+  const strX2 = bx + Math.sin(t * 0.6 + b.phase) * 6;
+  ctx.strokeStyle = '#999'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(bx, by + br);
+  ctx.quadraticCurveTo(strX2, by + br + 25, bx + Math.sin(t * 0.4 + b.phase) * 4, by + br + 50);
+  ctx.stroke();
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  ctx.beginPath();
+  ctx.ellipse(bx + 5, by + 5, br * 0.88, br * 1.05, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Balloon body
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(bx, by, br * 0.82, br, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Darker bottom half for depth
+  const grad = ctx.createRadialGradient(bx - br * 0.2, by - br * 0.25, br * 0.05, bx, by, br);
+  grad.addColorStop(0, 'rgba(255,255,255,0.25)');
+  grad.addColorStop(0.6, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.15)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.ellipse(bx, by, br * 0.82, br, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Shine
+  ctx.fillStyle = 'rgba(255,255,255,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(bx - br * 0.28, by - br * 0.28, br * 0.22, br * 0.13, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Tie knot
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(bx - 5, by + br - 2);
+  ctx.lineTo(bx + 5, by + br - 2);
+  ctx.lineTo(bx, by + br + 10);
+  ctx.closePath(); ctx.fill();
+
+  // Number
+  const fontSize = b.number >= 10 ? 19 : 22;
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.font = `bold ${fontSize}px Arial`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(b.number, bx + 1, by + 1);
+  ctx.fillStyle = 'white';
+  ctx.fillText(b.number, bx, by);
+}
+
+function drawBow() {
+  const halfLen = 50;
+  const perp = bowAngle + Math.PI / 2;
+
+  const x1 = BPX + Math.cos(perp) * halfLen;
+  const y1 = BPY + Math.sin(perp) * halfLen;
+  const x2 = BPX - Math.cos(perp) * halfLen;
+  const y2 = BPY - Math.sin(perp) * halfLen;
+
+  // Control point bends away from aiming direction
+  const cpx = BPX - Math.cos(bowAngle) * 42;
+  const cpy = BPY - Math.sin(bowAngle) * 42;
+
+  // Bow outer limb
+  ctx.strokeStyle = '#4a2010'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(cpx, cpy, x2, y2); ctx.stroke();
+
+  // Wood colour
+  ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(cpx, cpy, x2, y2); ctx.stroke();
+
+  // Wood grain highlight
+  ctx.strokeStyle = 'rgba(200,140,80,0.5)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(cpx, cpy, x2, y2); ctx.stroke();
+
+  // String — pulled back slightly toward archer
+  const pullX = BPX - Math.cos(bowAngle) * 10;
+  const pullY = BPY - Math.sin(bowAngle) * 10;
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1.5; ctx.lineCap = 'butt';
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(pullX, pullY); ctx.lineTo(x2, y2); ctx.stroke();
+
+  // Nocked arrow on string
+  ctx.save();
+  ctx.translate(pullX, pullY);
+  ctx.rotate(bowAngle);
+  // Shaft
+  ctx.strokeStyle = '#A0522D'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(52, 0); ctx.stroke();
+  // Head
+  ctx.fillStyle = '#aaa';
+  ctx.beginPath(); ctx.moveTo(52, 0); ctx.lineTo(44, -4); ctx.lineTo(44, 4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#888';
+  ctx.beginPath(); ctx.moveTo(52, 0); ctx.lineTo(46, -2); ctx.lineTo(46, 2); ctx.closePath(); ctx.fill();
+  // Fletching
+  ctx.fillStyle = '#EF4444';
+  ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-2, -7); ctx.lineTo(2, 0); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-2, 7); ctx.lineTo(2, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-4, -3); ctx.lineTo(-2, 0); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawArrowSprite(a) {
+  ctx.save();
+  ctx.translate(a.x, a.y);
+  ctx.rotate(a.angle);
+  ctx.strokeStyle = '#A0522D'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(14, 0); ctx.stroke();
+  ctx.fillStyle = '#bbb';
+  ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(6, -3); ctx.lineTo(6, 3); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#EF4444';
+  ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(-12, -6); ctx.lineTo(-8, 0); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(-12, 6); ctx.lineTo(-8, 0); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawCharacter(px, py) {
+  // Sneakers
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(px+2, py+39, 13, 5); ctx.fillRect(px+19, py+39, 13, 5);
+  ctx.fillStyle = '#E8E8E8';
+  ctx.fillRect(px+2, py+42, 13, 2); ctx.fillRect(px+19, py+42, 13, 2);
+
+  // Legs
+  ctx.fillStyle = '#F0C8A0';
+  ctx.fillRect(px+5, py+35, 9, 6); ctx.fillRect(px+20, py+35, 9, 6);
+
+  // Skirt
+  ctx.fillStyle = '#111827'; ctx.fillRect(px, py+28, 36, 12);
+  ctx.fillStyle = '#1a2436';
+  for (let sx = px+4; sx < px+34; sx += 5) ctx.fillRect(sx, py+28, 2, 12);
+  ctx.fillStyle = '#1f2d45'; ctx.fillRect(px, py+28, 36, 3);
+
+  // Polo shirt
+  ctx.fillStyle = '#F5F5F5'; ctx.fillRect(px+4, py+19, 26, 11);
+  ctx.fillStyle = '#E0E0E0';
+  ctx.fillRect(px+4, py+19, 3, 11); ctx.fillRect(px+27, py+19, 3, 11);
+
+  // Navy collar + yellow trim
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(px+11, py+17, 7, 6); ctx.fillRect(px+18, py+17, 7, 6);
+  ctx.fillStyle = '#F59E0B';
+  ctx.fillRect(px+11, py+17, 7, 2); ctx.fillRect(px+18, py+17, 7, 2);
+  ctx.fillStyle = '#F5F5F5'; ctx.fillRect(px+16, py+18, 4, 5);
+
+  // Buttons
+  ctx.fillStyle = '#111';
+  ctx.fillRect(px+17, py+22, 2, 2); ctx.fillRect(px+17, py+26, 2, 2);
+
+  // Chest badge
+  ctx.fillStyle = '#E8E8E8'; ctx.fillRect(px+7, py+22, 7, 6);
+  ctx.strokeStyle = '#CCC'; ctx.lineWidth = 1; ctx.strokeRect(px+7, py+22, 7, 6);
+  ctx.fillStyle = '#0f172a'; ctx.fillRect(px+8, py+23, 5, 4);
+  ctx.fillStyle = '#F59E0B'; ctx.fillRect(px+9, py+24, 3, 2);
+
+  // Sleeve trim
+  ctx.fillStyle = '#F59E0B';
+  ctx.fillRect(px+4, py+27, 3, 2); ctx.fillRect(px+27, py+27, 3, 2);
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(px+4, py+29, 3, 1); ctx.fillRect(px+27, py+29, 3, 1);
+
+  // Neck
+  ctx.fillStyle = '#F0C8A0'; ctx.fillRect(px+14, py+15, 8, 5);
+
+  // Hair
+  ctx.fillStyle = '#3D2008';
+  ctx.fillRect(px+6, py, 24, 7);
+  ctx.fillRect(px+4, py+4, 5, 10); ctx.fillRect(px+27, py+4, 5, 10);
+  ctx.fillRect(px+29, py+8, 6, 8);
+  ctx.fillStyle = '#2a1505'; ctx.fillRect(px+30, py+9, 4, 6);
+
+  // Face
+  ctx.fillStyle = '#F0C8A0'; ctx.fillRect(px+7, py+5, 22, 14);
+  ctx.fillStyle = 'rgba(240,140,140,0.45)';
+  ctx.fillRect(px+7, py+13, 5, 4); ctx.fillRect(px+24, py+13, 5, 4);
+
+  // Headband
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(px+5, py+4, 26, 4);
+  ctx.fillStyle = '#E5E5E5';
+  ctx.fillRect(px+5, py+4, 26, 1); ctx.fillRect(px+5, py+7, 26, 1);
+
+  // Eyes
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(px+10, py+9, 5, 5); ctx.fillRect(px+21, py+9, 5, 5);
+  ctx.fillStyle = '#5C3317';
+  ctx.fillRect(px+11, py+10, 3, 3); ctx.fillRect(px+22, py+10, 3, 3);
+  ctx.fillStyle = 'white';
+  ctx.fillRect(px+12, py+10, 1, 1); ctx.fillRect(px+23, py+10, 1, 1);
+
+  // Eyebrows
+  ctx.fillStyle = '#3D2008';
+  ctx.fillRect(px+10, py+7, 5, 2); ctx.fillRect(px+21, py+7, 5, 2);
+
+  // Smile — focused look (slight smile)
+  ctx.fillStyle = '#C27B5A';
+  ctx.fillRect(px+13, py+15, 10, 2);
+  ctx.fillRect(px+12, py+14, 2, 2); ctx.fillRect(px+22, py+14, 2, 2);
+  ctx.fillStyle = 'white'; ctx.fillRect(px+14, py+15, 8, 2);
+}
+
+function drawHUD() {
+  ctx.fillStyle = 'rgba(0,0,20,0.72)'; ctx.fillRect(0, 0, W, 58);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  if (celebrating) {
+    const pulse = 1 + Math.sin(celebTimer * 0.18) * 0.06;
+    ctx.save(); ctx.translate(W/2, 29); ctx.scale(pulse, pulse);
+    ctx.font = 'bold 26px Arial'; ctx.fillStyle = '#FFD700';
+    ctx.fillText(`⭐  ${question.a} + ${question.b} = ${question.answer}  ⭐  ¡CORRECTO!`, 0, 0);
+    ctx.restore();
+  } else {
+    ctx.font = 'bold 30px Arial'; ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(`${question.a}  +  ${question.b}  =  ?`, W/2, 29);
+  }
+
+  ctx.font = 'bold 22px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#EF4444';
+  ctx.fillText('♥'.repeat(lives), 12, 29);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#FFD700';
+  ctx.fillText(`⭐ ${score}`, W - 12, 29);
+}
+
+function drawGameOver() {
+  ctx.fillStyle = 'rgba(0,0,0,0.78)'; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#EF4444'; ctx.font = 'bold 62px Arial';
+  ctx.fillText('¡FIN DEL JUEGO!', W/2, H/2 - 55);
+  ctx.fillStyle = '#FFD700'; ctx.font = 'bold 32px Arial';
+  ctx.fillText(`⭐ PUNTAJE: ${score}`, W/2, H/2 + 5);
+  ctx.fillStyle = '#4ADE80'; ctx.font = '24px Arial';
+  if (Math.floor(Date.now() / 600) % 2 === 0)
+    ctx.fillText('PRESIONA  ENTER  PARA JUGAR DE NUEVO', W/2, H/2 + 62);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function shuffle(arr)   { return arr.sort(() => Math.random() - 0.5); }
+
+// ─── Loop ─────────────────────────────────────────────────────────────────────
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+resetGame();
+loop();
+
+  function toggleRules() {
+    const o = document.getElementById('rules-overlay');
+    o.style.display = o.style.display === 'none' ? 'flex' : 'none';
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const o = document.getElementById('rules-overlay');
+      if (o) o.style.display = 'none';
+    }
+  });
+</script>
+</body>
+</html>

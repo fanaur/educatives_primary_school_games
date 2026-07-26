@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Suma de Dados – MicaGames</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background:#0f0f1a;
+      min-height:100vh;
+      display:flex; flex-direction:column; align-items:center;
+      font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y:auto; overflow-x:hidden;
+      user-select:none;
+    }
+
+    canvas#bg { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+
+    #game {
+      position:relative; z-index:1;
+      display:flex; flex-direction:column;
+      align-items:center; gap:22px;
+      padding:20px 16px 36px;
+      width:100%; max-width:560px;
+    }
+
+    /* ── Top bar ── */
+    #topbar { display:flex; align-items:center; gap:14px; width:100%; }
+    .home-btn {
+      text-decoration:none;
+      background:rgba(255,255,255,0.08);
+      border:2px solid rgba(255,255,255,0.15);
+      border-radius:50%; width:44px; height:44px;
+      display:flex; align-items:center; justify-content:center; font-size:1.3rem;
+      transition:border-color .15s, background .15s;
+    }
+    .home-btn:hover { border-color:#FFD700; background:rgba(255,215,0,.1); }
+    .page-title {
+      color:#FFD700; font-size:22px;
+      text-shadow:0 0 20px rgba(255,215,0,.4), 2px 2px 0 #b8860b;
+      letter-spacing:2px;
+    }
+
+    /* ── HUD ── */
+    #hud { display:flex; gap:28px; align-items:center; }
+    .hud-box { text-align:center; }
+    .hud-label { color:#64748b; font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+    .hud-value { color:#FFD700; font-size:26px; font-weight:bold; text-shadow:0 0 14px rgba(255,215,0,.4); }
+
+    #level-badge {
+      background:rgba(255,215,0,.1); border:2px solid rgba(255,215,0,.3);
+      color:#FFD700; font-size:13px; letter-spacing:2px;
+      padding:5px 16px; border-radius:20px;
+    }
+
+    /* ── Table / play card ── */
+    #table-card {
+      width:100%;
+      background:rgba(255,255,255,.05);
+      border:2px solid rgba(255,255,255,.1);
+      border-radius:28px;
+      padding:30px 20px 26px;
+      display:flex; flex-direction:column;
+      align-items:center; gap:22px;
+      transition:border-color .3s, box-shadow .3s;
+    }
+    #table-card.correct { border-color:#22c55e; box-shadow:0 0 40px rgba(34,197,94,.3); }
+    #table-card.wrong   { border-color:#ef4444; box-shadow:0 0 40px rgba(239,68,68,.25); }
+
+    /* ── Dice row ── */
+    #dice-row {
+      display:flex; align-items:center; justify-content:center;
+      gap:22px; flex-wrap:wrap;
+    }
+
+    .die {
+      width:96px; height:96px;
+      background:linear-gradient(145deg,#f8fafc,#e2e8f0);
+      border-radius:20px;
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      grid-template-rows:repeat(3,1fr);
+      padding:14px;
+      box-shadow: 0 8px 20px rgba(0,0,0,.4), inset 0 2px 4px rgba(255,255,255,.6);
+      position:relative;
+      perspective: 400px;
+    }
+
+    /* Phase 1 (0-1.5s): fast wild tumble */
+    .die.phase-tumble { animation: tumble 0.35s linear infinite; }
+    @keyframes tumble {
+      0%   { transform: rotate(0deg) rotateX(0deg) scale(1); }
+      25%  { transform: rotate(90deg) rotateX(180deg) scale(1.12); }
+      50%  { transform: rotate(180deg) rotateX(360deg) scale(0.9); }
+      75%  { transform: rotate(270deg) rotateX(540deg) scale(1.1); }
+      100% { transform: rotate(360deg) rotateX(720deg) scale(1); }
+    }
+
+    /* Phase 2 (1.5-3s): bouncing on the table */
+    .die.phase-bounce { animation: bounce 0.45s cubic-bezier(.36,.07,.19,.97) infinite; }
+    @keyframes bounce {
+      0%   { transform: translateY(0) rotate(0deg) scale(1); }
+      30%  { transform: translateY(-26px) rotate(-12deg) scale(1.06); }
+      55%  { transform: translateY(0) rotate(8deg) scale(0.96); }
+      75%  { transform: translateY(-10px) rotate(-4deg) scale(1.02); }
+      100% { transform: translateY(0) rotate(0deg) scale(1); }
+    }
+
+    /* Phase 3 (3-4s): slow wobble settling down */
+    .die.phase-settle { animation: settle 0.6s ease-out infinite; }
+    @keyframes settle {
+      0%   { transform: rotate(-6deg) scale(1.03); }
+      50%  { transform: rotate(4deg) scale(0.99); }
+      100% { transform: rotate(-6deg) scale(1.03); }
+    }
+
+    /* Final pop when the die lands on its number */
+    .die.landed { animation: landPop 0.35s cubic-bezier(.175,.885,.32,1.275); }
+    @keyframes landPop {
+      0%   { transform: scale(1.3) rotate(8deg); }
+      60%  { transform: scale(0.92) rotate(-3deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+    .pip {
+      width:14px; height:14px;
+      border-radius:50%;
+      background:#1e293b;
+      align-self:center; justify-self:center;
+      opacity:0;
+    }
+    .pip.show { opacity:1; }
+
+    .plus-sign {
+      font-size:2.6rem; font-weight:bold; color:#FFD700;
+      text-shadow:0 0 20px rgba(255,215,0,.5);
+    }
+
+    /* ── Roll button ── */
+    #roll-btn {
+      padding:16px 48px;
+      font-size:1.3rem; font-family:inherit; font-weight:bold; color:#1a1a1a;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      border:none; border-radius:50px; cursor:pointer;
+      box-shadow:0 6px 24px rgba(255,215,0,.4);
+      transition:transform .12s;
+      letter-spacing:1px;
+    }
+    #roll-btn:hover:not(:disabled) { transform:scale(1.06); }
+    #roll-btn:disabled { opacity:.5; cursor:default; }
+
+    /* ── Equation display (numbers) ── */
+    #num-equation {
+      font-size:2.2rem; font-weight:bold; letter-spacing:2px;
+      color:#94a3b8; text-align:center;
+      min-height:40px;
+    }
+    #num-equation .n { color:#FFD700; }
+    #num-equation .q { color:#FFD700; text-shadow:0 0 16px rgba(255,215,0,.6); }
+
+    /* ── Message ── */
+    #message {
+      font-size:17px; font-weight:bold; letter-spacing:1px;
+      min-height:26px; text-align:center; color:#e2e8f0;
+    }
+    #message.correct { color:#22c55e; text-shadow:0 0 12px rgba(34,197,94,.5); }
+    #message.wrong   { color:#ef4444; text-shadow:0 0 12px rgba(239,68,68,.5); }
+
+    /* ── Answer buttons ── */
+    #answers {
+      display:grid; grid-template-columns:repeat(2,1fr);
+      gap:12px; width:100%;
+    }
+    .ans-btn {
+      padding:20px 10px;
+      font-size:2rem; font-family:inherit; font-weight:bold; color:#fff;
+      background:rgba(59,130,246,.12);
+      border:3px solid rgba(59,130,246,.35);
+      border-radius:20px; cursor:pointer;
+      transition:transform .12s, background .12s, border-color .12s, box-shadow .12s;
+      position:relative; overflow:hidden;
+    }
+    .ans-btn::before {
+      content:''; position:absolute; inset:0;
+      background:linear-gradient(135deg,rgba(255,255,255,.06) 0%,transparent 60%);
+      border-radius:17px;
+    }
+    .ans-btn:hover:not(:disabled) {
+      transform:scale(1.05) translateY(-3px);
+      background:rgba(59,130,246,.28);
+      border-color:#60a5fa;
+      box-shadow:0 8px 28px rgba(59,130,246,.4);
+    }
+    .ans-btn:disabled { cursor:default; }
+    .ans-btn.correct-ans {
+      background:rgba(34,197,94,.28); border-color:#22c55e;
+      box-shadow:0 0 24px rgba(34,197,94,.5); transform:scale(1.06);
+    }
+    .ans-btn.wrong-ans {
+      background:rgba(239,68,68,.22); border-color:#ef4444;
+      animation:shake .4s ease;
+    }
+    @keyframes shake {
+      0%,100%{ transform:translateX(0); }
+      20%{ transform:translateX(-8px); }
+      40%{ transform:translateX(8px); }
+      60%{ transform:translateX(-5px); }
+      80%{ transform:translateX(5px); }
+    }
+
+    /* ── Next button ── */
+    #next-btn {
+      display:none; padding:13px 44px;
+      font-size:1.15rem; font-family:inherit; font-weight:bold; color:#1a1a1a;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      border:none; border-radius:50px; cursor:pointer;
+      box-shadow:0 5px 22px rgba(255,215,0,.4); transition:transform .12s;
+    }
+    #next-btn:hover { transform:scale(1.07); }
+
+    .confetti-layer { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:50; }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas id="confetti-canvas" class="confetti-layer"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html">🏠</a>
+      <span class="page-title">🎲 SUMA DE DADOS</span>
+    </div>
+
+    <div id="hud">
+      <div class="hud-box">
+        <div class="hud-label">Puntos</div>
+        <div class="hud-value" id="score">0</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">Racha</div>
+        <div class="hud-value" id="streak">🔥 0</div>
+      </div>
+    </div>
+
+    <div id="level-badge">NIVEL 1 — 1 DADO</div>
+
+    <div id="table-card">
+      <div id="dice-row"></div>
+      <button id="roll-btn" onclick="rollDice()">🎲 LANZAR DADOS</button>
+      <div id="num-equation"></div>
+      <div id="message">¡PRESIONA LANZAR PARA COMENZAR!</div>
+    </div>
+
+    <button id="next-btn" onclick="nextQ()">SIGUIENTE ➡️</button>
+
+    <div id="answers"></div>
+  </div>
+
+  <script>
+    /* ── Starfield ── */
+    const bgC=document.getElementById('bg'),bgX=bgC.getContext('2d');
+    function rbg(){bgC.width=innerWidth;bgC.height=innerHeight;}
+    rbg();window.addEventListener('resize',rbg);
+    const stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*1.5,sp:.00008+Math.random()*.00015,tw:Math.random()*Math.PI*2}));
+    const bgF=['🎲','1','2','3','4','5','6','+','='].map(c=>({t:c,x:Math.random(),y:Math.random(),sp:.0001+Math.random()*.0002,sz:13+Math.random()*16,a:.04+Math.random()*.07}));
+    function drawBg(){const W=bgC.width,H=bgC.height;bgX.fillStyle='#0f0f1a';bgX.fillRect(0,0,W,H);for(const s of stars){s.tw+=s.sp*60;bgX.globalAlpha=.4+Math.sin(s.tw)*.4;bgX.fillStyle='#fff';bgX.beginPath();bgX.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);bgX.fill();}for(const f of bgF){f.y-=f.sp;if(f.y<-.05)f.y=1.05;bgX.globalAlpha=f.a;bgX.fillStyle='#FFD700';bgX.font=`bold ${f.sz}px Arial`;bgX.textAlign='center';bgX.fillText(f.t,f.x*W,f.y*H);}bgX.globalAlpha=1;requestAnimationFrame(drawBg);}
+    drawBg();
+
+    /* ── Confetti ── */
+    const cfC=document.getElementById('confetti-canvas'),cfX=cfC.getContext('2d');
+    cfC.width=innerWidth;cfC.height=innerHeight;
+    window.addEventListener('resize',()=>{cfC.width=innerWidth;cfC.height=innerHeight;});
+    let cp=[];
+    function burst(){const cols=['#FFD700','#22c55e','#3b82f6','#ec4899','#f97316','#8b5cf6'];for(let i=0;i<80;i++)cp.push({x:innerWidth/2+(Math.random()-.5)*300,y:innerHeight*.38,vx:(Math.random()-.5)*10,vy:-7-Math.random()*9,sz:6+Math.random()*8,col:cols[~~(Math.random()*cols.length)],rot:Math.random()*360,rv:(Math.random()-.5)*14,life:1});requestAnimationFrame(animCf);}
+    function animCf(){cfX.clearRect(0,0,cfC.width,cfC.height);cp=cp.filter(p=>p.life>.02);for(const p of cp){p.vy+=.38;p.x+=p.vx;p.y+=p.vy;p.rot+=p.rv;p.life-=.018;cfX.save();cfX.globalAlpha=p.life;cfX.translate(p.x,p.y);cfX.rotate(p.rot*Math.PI/180);cfX.fillStyle=p.col;cfX.fillRect(-p.sz/2,-p.sz/2,p.sz,p.sz*.55);cfX.restore();}if(cp.length>0)requestAnimationFrame(animCf);else cfX.clearRect(0,0,cfC.width,cfC.height);}
+
+    /* Standard 6-face die pip layouts (3x3 grid positions, 1-indexed) */
+    const FACES = {
+      1: [5],
+      2: [1,9],
+      3: [1,5,9],
+      4: [1,3,7,9],
+      5: [1,3,5,7,9],
+      6: [1,3,4,6,7,9],
+    };
+
+    const LEVELS=[
+      {label:'1', desc:'RESULTADOS FÁCILES'},
+      {label:'2', desc:'¡SIGUE PRACTICANDO!'},
+      {label:'3', desc:'¡ERES UN EXPERTO!'},
+    ];
+    const ADVANCE=5;
+
+    let score=0, streak=0, levelIdx=0, correctInLevel=0;
+    let dieA=1, dieB=1, correct=1, answered=true, rolled=false;
+
+    /* ── Build the two dice elements once ── */
+    function buildDice(){
+      const row=document.getElementById('dice-row');
+      row.innerHTML='';
+      const a=makeDie('die-a');
+      const plus=el('div','plus-sign','+');
+      const b=makeDie('die-b');
+      row.appendChild(a); row.appendChild(plus); row.appendChild(b);
+      setDieFace('die-a', 1);
+      setDieFace('die-b', 1);
+    }
+
+    function makeDie(id){
+      const die=el('div','die');
+      die.id=id;
+      for(let i=0;i<9;i++){
+        const pip=el('div','pip');
+        die.appendChild(pip);
+      }
+      return die;
+    }
+
+    function setDieFace(id, value){
+      const die=document.getElementById(id);
+      const pips=die.querySelectorAll('.pip');
+      pips.forEach(p=>p.classList.remove('show'));
+      FACES[value].forEach(pos=>{
+        pips[pos-1].classList.add('show');
+      });
+    }
+
+    /* ── Roll the dice: 3 animation phases over 4 seconds ──
+       Phase 1 (0    - 1500ms): fast wild tumble
+       Phase 2 (1500 - 3000ms): bouncing on the table
+       Phase 3 (3000 - 4000ms): slow wobble settling down
+       Then: land on the final values
+    ── */
+    function rollDice(){
+      if(!answered && rolled) return; // already rolled, waiting for answer
+
+      document.getElementById('roll-btn').disabled=true;
+      document.getElementById('table-card').className='';
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('answers').innerHTML='';
+      document.getElementById('num-equation').innerHTML='';
+
+      const dieAEl=document.getElementById('die-a');
+      const dieBEl=document.getElementById('die-b');
+      dieAEl.classList.remove('landed');
+      dieBEl.classList.remove('landed');
+
+      /* Randomize faces rapidly while dice are "in the air" */
+      const faceTimer=setInterval(()=>{
+        setDieFace('die-a', 1+Math.floor(Math.random()*6));
+        setDieFace('die-b', 1+Math.floor(Math.random()*6));
+      }, 90);
+
+      /* Phase 1: fast tumble */
+      dieAEl.className='die phase-tumble';
+      dieBEl.className='die phase-tumble';
+      setMsg('🎲 ¡LANZANDO!','');
+
+      /* Phase 2: bounce (at 1.5s) */
+      setTimeout(()=>{
+        dieAEl.className='die phase-bounce';
+        dieBEl.className='die phase-bounce';
+        setMsg('🎲 ¡RODANDO!','');
+      }, 1500);
+
+      /* Phase 3: slow settle (at 3s) */
+      setTimeout(()=>{
+        dieAEl.className='die phase-settle';
+        dieBEl.className='die phase-settle';
+        setMsg('🎲 ¡CASI!','');
+      }, 3000);
+
+      /* Land (at 4s) */
+      setTimeout(()=>{
+        clearInterval(faceTimer);
+        finishRoll();
+      }, 4000);
+    }
+
+    function finishRoll(){
+      const dieAEl=document.getElementById('die-a');
+      const dieBEl=document.getElementById('die-b');
+
+      dieA = 1+Math.floor(Math.random()*6);
+      dieB = 1+Math.floor(Math.random()*6);
+      correct = dieA+dieB;
+      setDieFace('die-a', dieA);
+      setDieFace('die-b', dieB);
+
+      dieAEl.className='die landed';
+      dieBEl.className='die landed';
+
+      answered=false;
+      rolled=true;
+      document.getElementById('roll-btn').disabled=true;
+
+      renderNumEq();
+      renderAnswers();
+      setMsg('¿CUÁNTO SUMAN LOS DOS DADOS?','');
+    }
+
+    function renderNumEq(){
+      const ne=document.getElementById('num-equation');
+      ne.innerHTML=`<span class="n">${dieA}</span> + <span class="n">${dieB}</span> = <span class="q">?</span>`;
+    }
+
+    /* ── Answer choices ── */
+    function renderAnswers(){
+      const cont=document.getElementById('answers');
+      cont.innerHTML='';
+
+      const opts=new Set([correct]);
+      while(opts.size<4){
+        const d=Math.floor(Math.random()*4)+1;
+        const w=Math.random()<.5?correct+d:correct-d;
+        if(w>=2 && w<=12 && w!==correct) opts.add(w);
+      }
+
+      [...opts].sort(()=>Math.random()-.5).forEach(val=>{
+        const btn=document.createElement('button');
+        btn.className='ans-btn';
+        btn.textContent=val;
+        btn.addEventListener('click',()=>checkAnswer(btn,val));
+        cont.appendChild(btn);
+      });
+    }
+
+    function checkAnswer(btn,val){
+      if(answered) return;
+      answered=true;
+      document.querySelectorAll('.ans-btn').forEach(b=>b.disabled=true);
+
+      if(val===correct){
+        btn.classList.add('correct-ans');
+        document.getElementById('table-card').classList.add('correct');
+        streak++; const bonus=streak>=3?20:10; score+=bonus;
+        document.getElementById('score').textContent=score;
+        document.getElementById('streak').textContent=`🔥 ${streak}`;
+        const msg=streak>=5?`🏆 ¡RACHA DE ${streak}! +${bonus} PTS`:
+                  streak>=3?`⭐ ¡GENIAL! RACHA DE ${streak}! +${bonus} PTS`:
+                            `✅ ¡CORRECTO! ${dieA} + ${dieB} = ${correct}`;
+        setMsg(msg,'correct');
+        burst();
+        correctInLevel++;
+        if(correctInLevel>=ADVANCE && levelIdx<LEVELS.length-1){
+          levelIdx++; correctInLevel=0; updateBadge();
+          setTimeout(()=>setMsg(`🚀 ¡NIVEL ${LEVELS[levelIdx].label}! ${LEVELS[levelIdx].desc}`,'correct'),900);
+        }
+        document.getElementById('next-btn').style.display='inline-block';
+      } else {
+        btn.classList.add('wrong-ans');
+        document.getElementById('table-card').classList.add('wrong');
+        streak=0; document.getElementById('streak').textContent='🔥 0';
+        setMsg('❌ ¡INCORRECTO! INTÉNTALO DE NUEVO','wrong');
+        setTimeout(()=>{
+          answered=false;
+          document.getElementById('table-card').className='';
+          document.querySelectorAll('.ans-btn').forEach(b=>{
+            b.disabled=false;
+            b.classList.remove('wrong-ans','correct-ans');
+          });
+          setMsg('¿CUÁNTO SUMAN LOS DOS DADOS?','');
+        }, 900);
+      }
+    }
+
+    function nextQ(){
+      rolled=false;
+      answered=true;
+      document.getElementById('roll-btn').disabled=false;
+      document.getElementById('table-card').className='';
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('answers').innerHTML='';
+      document.getElementById('num-equation').innerHTML='';
+      setDieFace('die-a', 1);
+      setDieFace('die-b', 1);
+      setMsg('¡PRESIONA LANZAR PARA COMENZAR!','');
+    }
+
+    function updateBadge(){
+      const l=LEVELS[levelIdx];
+      document.getElementById('level-badge').textContent=`NIVEL ${l.label} — ${l.desc}`;
+    }
+    function setMsg(t,c){const e=document.getElementById('message');e.textContent=t;e.className=c;}
+    function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+
+    buildDice();
+  </script>
+</body>
+</html>

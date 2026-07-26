@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Suma con Emojis – MicaGames</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background: #0f0f1a;
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y: auto; overflow-x: hidden;
+      user-select: none;
+    }
+
+    canvas#bg {
+      position: fixed; top:0; left:0;
+      width:100%; height:100%; z-index:0;
+    }
+
+    #game {
+      position: relative; z-index:1;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 16px;
+      padding: 18px 14px 32px;
+      width: 100%; max-width: 700px;
+    }
+
+    /* ── Top bar ── */
+    #topbar {
+      display:flex; align-items:center;
+      gap:14px; width:100%;
+    }
+    .home-btn {
+      text-decoration:none;
+      background:rgba(255,255,255,0.08);
+      border:2px solid rgba(255,255,255,0.15);
+      border-radius:50%; width:44px; height:44px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:1.3rem;
+      transition:border-color 0.15s, background 0.15s;
+    }
+    .home-btn:hover { border-color:#FFD700; background:rgba(255,215,0,0.1); }
+    .page-title {
+      color:#FFD700; font-size:22px;
+      text-shadow:0 0 20px rgba(255,215,0,0.4), 2px 2px 0 #b8860b;
+      letter-spacing:2px;
+    }
+
+    /* ── HUD ── */
+    #hud { display:flex; gap:28px; align-items:center; }
+    .hud-box { text-align:center; }
+    .hud-label { color:#64748b; font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+    .hud-value { color:#FFD700; font-size:26px; font-weight:bold; text-shadow:0 0 14px rgba(255,215,0,0.4); }
+
+    #level-badge {
+      background: rgba(255,215,0,0.1);
+      border: 2px solid rgba(255,215,0,0.3);
+      color: #FFD700; font-size: 13px; letter-spacing: 2px;
+      padding: 5px 16px; border-radius: 20px;
+    }
+
+    /* ── Question card ── */
+    #question-card {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 2px solid rgba(255,255,255,0.1);
+      border-radius: 28px;
+      padding: 20px 16px 16px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 14px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    #question-card.correct { border-color:#22c55e; box-shadow:0 0 36px rgba(34,197,94,0.25); }
+    #question-card.wrong   { border-color:#ef4444; box-shadow:0 0 36px rgba(239,68,68,0.2); }
+
+    /* ── Equation row ── */
+    #equation {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .group-wrap {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 6px;
+    }
+
+    .emoji-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: center;
+      max-width: 200px;
+      background: rgba(255,255,255,0.05);
+      border: 2px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 12px;
+      min-width: 70px;
+      min-height: 64px;
+    }
+    .emoji-item {
+      font-size: 2rem; line-height: 1;
+      animation: popIn 0.22s cubic-bezier(.175,.885,.32,1.275) both;
+    }
+    @keyframes popIn {
+      from { transform:scale(0); opacity:0; }
+      to   { transform:scale(1); opacity:1; }
+    }
+
+    .group-num {
+      font-size: 1.6rem; font-weight: bold;
+      color: #FFD700;
+      text-shadow: 0 0 12px rgba(255,215,0,0.5);
+    }
+
+    /* operator column: sign on top, number-row sign on bottom */
+    .op-col {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: space-between;
+      gap: 6px; flex-shrink: 0;
+      /* align vertically so emoji-group and op-sign share the same top */
+    }
+    .op-sign {
+      font-size: 2.6rem; color:#FFD700; font-weight:bold;
+      text-shadow:0 0 20px rgba(255,215,0,0.5);
+    }
+    /* number-row version of the operator */
+    .op-num {
+      font-size: 2rem; font-weight: bold;
+      color: #94a3b8;
+      letter-spacing: 1px;
+    }
+    .question-mark {
+      font-size: 3rem; color:#FFD700;
+      text-shadow:0 0 24px rgba(255,215,0,0.6); font-weight:bold;
+      animation: pulse 1.1s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100%{ transform:scale(1); }
+      50%    { transform:scale(1.14); }
+    }
+
+    /* ── Message ── */
+    #message {
+      font-size: 17px; letter-spacing:1px;
+      min-height:26px; text-align:center; color:#e2e8f0; font-weight:bold;
+    }
+    #message.correct { color:#22c55e; text-shadow:0 0 12px rgba(34,197,94,0.5); }
+    #message.wrong   { color:#ef4444; text-shadow:0 0 12px rgba(239,68,68,0.5); }
+
+    /* ── Answer buttons ── */
+    #answers {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      width: 100%;
+    }
+
+    .ans-btn {
+      padding: 12px 8px 14px;
+      font-family: inherit;
+      color: #ffffff;
+      background: rgba(59,130,246,0.12);
+      border: 3px solid rgba(59,130,246,0.35);
+      border-radius: 20px; cursor: pointer;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 8px;
+      transition: transform 0.12s, background 0.12s, border-color 0.12s, box-shadow 0.12s;
+      position: relative; overflow: hidden;
+    }
+    .ans-btn::before {
+      content:''; position:absolute; inset:0;
+      background:linear-gradient(135deg,rgba(255,255,255,0.06) 0%,transparent 60%);
+      border-radius:17px;
+    }
+    .ans-btn:hover:not(:disabled) {
+      transform:scale(1.04) translateY(-3px);
+      background:rgba(59,130,246,0.28);
+      border-color:#60a5fa;
+      box-shadow:0 8px 28px rgba(59,130,246,0.4);
+    }
+    .ans-btn:disabled { cursor:default; }
+
+    /* mini emoji grid inside the button */
+    .btn-emoji-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      justify-content: center;
+      max-width: 160px;
+    }
+    .btn-emoji {
+      font-size: 1.35rem;
+      line-height: 1;
+    }
+    .btn-number {
+      font-size: 1.9rem; font-weight: bold;
+      color: #FFD700;
+      text-shadow: 0 0 10px rgba(255,215,0,0.4);
+    }
+
+    .ans-btn.correct-ans {
+      background:rgba(34,197,94,0.28);
+      border-color:#22c55e;
+      box-shadow:0 0 24px rgba(34,197,94,0.5);
+      transform:scale(1.06);
+    }
+    .ans-btn.wrong-ans {
+      background:rgba(239,68,68,0.22);
+      border-color:#ef4444;
+      animation:shake 0.4s ease;
+    }
+    @keyframes shake {
+      0%,100%{ transform:translateX(0); }
+      20%{ transform:translateX(-8px); }
+      40%{ transform:translateX(8px); }
+      60%{ transform:translateX(-5px); }
+      80%{ transform:translateX(5px); }
+    }
+
+    /* ── Next button ── */
+    #next-btn {
+      display:none;
+      padding:13px 44px;
+      font-size:1.15rem; font-family:inherit; font-weight:bold;
+      color:#1a1a1a;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      border:none; border-radius:50px; cursor:pointer;
+      box-shadow:0 5px 22px rgba(255,215,0,0.4);
+      transition:transform 0.12s;
+    }
+    #next-btn:hover { transform:scale(1.07); }
+
+    .confetti-layer {
+      position:fixed; top:0; left:0;
+      width:100%; height:100%;
+      pointer-events:none; z-index:50;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas id="confetti-canvas" class="confetti-layer"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html">🏠</a>
+      <span class="page-title">➕ SUMA CON EMOJIS</span>
+    </div>
+
+    <div id="hud">
+      <div class="hud-box">
+        <div class="hud-label">Puntos</div>
+        <div class="hud-value" id="score">0</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">Racha</div>
+        <div class="hud-value" id="streak">🔥 0</div>
+      </div>
+    </div>
+
+    <div id="level-badge">NIVEL 1 — SUMAS HASTA 10</div>
+
+    <div id="question-card">
+      <div id="equation"></div>
+      <div id="message">¿CUÁNTOS EMOJIS HAY EN TOTAL?</div>
+    </div>
+
+    <div id="answers"></div>
+
+    <button id="next-btn" onclick="nextQuestion()">SIGUIENTE ➡️</button>
+  </div>
+
+  <script>
+    /* ── Starfield ── */
+    const bgC=document.getElementById('bg'),bgX=bgC.getContext('2d');
+    function rbg(){bgC.width=innerWidth;bgC.height=innerHeight;}
+    rbg();window.addEventListener('resize',rbg);
+    const stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*1.5,sp:.00008+Math.random()*.00015,tw:Math.random()*Math.PI*2}));
+    const bgF=['➕','1','2','3','4','5','6','7','8','9','='].map(c=>({t:c,x:Math.random(),y:Math.random(),sp:.0001+Math.random()*.0002,sz:13+Math.random()*15,a:.04+Math.random()*.07}));
+    function drawBg(){const W=bgC.width,H=bgC.height;bgX.fillStyle='#0f0f1a';bgX.fillRect(0,0,W,H);for(const s of stars){s.tw+=s.sp*60;bgX.globalAlpha=.4+Math.sin(s.tw)*.4;bgX.fillStyle='#fff';bgX.beginPath();bgX.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);bgX.fill();}for(const f of bgF){f.y-=f.sp;if(f.y<-.05)f.y=1.05;bgX.globalAlpha=f.a;bgX.fillStyle='#FFD700';bgX.font=`bold ${f.sz}px Arial`;bgX.textAlign='center';bgX.fillText(f.t,f.x*W,f.y*H);}bgX.globalAlpha=1;requestAnimationFrame(drawBg);}
+    drawBg();
+
+    /* ── Confetti ── */
+    const cfC=document.getElementById('confetti-canvas'),cfX=cfC.getContext('2d');
+    cfC.width=innerWidth;cfC.height=innerHeight;
+    window.addEventListener('resize',()=>{cfC.width=innerWidth;cfC.height=innerHeight;});
+    let cp=[];
+    function burst(){
+      const cols=['#FFD700','#22c55e','#3b82f6','#ec4899','#f97316','#8b5cf6'];
+      for(let i=0;i<80;i++) cp.push({x:innerWidth/2+(Math.random()-.5)*340,y:innerHeight*.38,vx:(Math.random()-.5)*10,vy:-7-Math.random()*9,sz:6+Math.random()*8,col:cols[~~(Math.random()*cols.length)],rot:Math.random()*360,rv:(Math.random()-.5)*14,life:1});
+      requestAnimationFrame(animCf);
+    }
+    function animCf(){cfX.clearRect(0,0,cfC.width,cfC.height);cp=cp.filter(p=>p.life>.02);for(const p of cp){p.vy+=.38;p.x+=p.vx;p.y+=p.vy;p.rot+=p.rv;p.life-=.018;cfX.save();cfX.globalAlpha=p.life;cfX.translate(p.x,p.y);cfX.rotate(p.rot*Math.PI/180);cfX.fillStyle=p.col;cfX.fillRect(-p.sz/2,-p.sz/2,p.sz,p.sz*.55);cfX.restore();}if(cp.length>0)requestAnimationFrame(animCf);else cfX.clearRect(0,0,cfC.width,cfC.height);}
+
+    /* ── Emoji pool (all individual emojis) ── */
+    const POOL = [
+      '🍎','🍊','🍋','🍇','🍓','🍒','🍑','🥝','🍌','🍉',
+      '🐱','🐶','🐸','🐻','🦊','🐰','🐯','🐮','🐷','🐔',
+      '⭐','🌙','☀️','🌸','🔥','💧','🌈','❄️','⚡','🍀',
+      '🍕','🍔','🌮','🍩','🍦','🧁','🍭','🍫','🥐','🍿',
+      '🚀','🚗','✈️','🚂','⛵','🚁','🏎️','🛸','🚀','🎸',
+      '⚽','🏀','🎾','⚾','🎱','🏐','🎯','🎮','🎲','🎪',
+      '🦋','🐝','🐞','🦄','🐙','🦀','🐬','🦒','🦓','🦁',
+    ];
+
+    /* ── Levels ── */
+    const LEVELS=[
+      {label:'1',desc:'SUMAS HASTA 10', min:1,max:5, maxSum:10},
+      {label:'2',desc:'SUMAS HASTA 15', min:1,max:8, maxSum:15},
+      {label:'3',desc:'SUMAS HASTA 20', min:2,max:10,maxSum:20},
+    ];
+
+    let score=0, streak=0, levelIdx=0, correctInLevel=0;
+    const ADVANCE=5;
+    let numA,numB,correct,emojiA,emojiB,answered=false;
+
+    /* Pick two different random emojis */
+    function twoEmojis(){
+      const i=Math.floor(Math.random()*POOL.length);
+      let j;
+      do { j=Math.floor(Math.random()*POOL.length); } while(j===i);
+      return [POOL[i], POOL[j]];
+    }
+
+    /* ── New question ── */
+    function newQuestion(){
+      answered=false;
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('question-card').className='';
+
+      const lvl=LEVELS[levelIdx];
+      emojiA=emojiB=POOL[Math.floor(Math.random()*POOL.length)];
+
+      do {
+        numA=lvl.min+Math.floor(Math.random()*(lvl.max-lvl.min+1));
+        numB=lvl.min+Math.floor(Math.random()*(lvl.max-lvl.min+1));
+      } while(numA+numB>lvl.maxSum);
+
+      correct=numA+numB;
+
+      renderEquation();
+      renderAnswers();
+      setMsg('¿CUÁNTOS EMOJIS HAY EN TOTAL?','');
+    }
+
+    /* ── Equation: emoji row + number row aligned ── */
+    function renderEquation(){
+      const eq=document.getElementById('equation');
+      eq.innerHTML='';
+
+      /* Each column: [emoji group / number] stacked */
+      eq.appendChild(makeGroup(numA, emojiA));
+      eq.appendChild(makeOpCol('+'));
+      eq.appendChild(makeGroup(numB, emojiB));
+      eq.appendChild(makeOpCol('='));
+      eq.appendChild(makeQCol());
+    }
+
+    /* A group column: emojis on top, big number below */
+    function makeGroup(n, emoji){
+      const wrap=el('div','group-wrap');
+
+      const group=el('div','emoji-group');
+      for(let i=0;i<n;i++){
+        const s=el('span','emoji-item',emoji);
+        s.style.animationDelay=(i*35)+'ms';
+        group.appendChild(s);
+      }
+
+      const num=el('div','group-num',String(n));
+
+      wrap.appendChild(group);
+      wrap.appendChild(num);
+      return wrap;
+    }
+
+    /* An operator column: op sign on top, same sign in number row */
+    function makeOpCol(sign){
+      const wrap=el('div','op-col');
+
+      const top=el('div','op-sign',sign);
+      const bot=el('div','op-num',sign);
+
+      wrap.appendChild(top);
+      wrap.appendChild(bot);
+      return wrap;
+    }
+
+    /* The ? column: animated ? on top, ? in number row */
+    function makeQCol(){
+      const wrap=el('div','op-col');
+
+      const top=el('div','question-mark','?');
+      const bot=el('div','op-num','?');
+      bot.style.color='#FFD700';
+      bot.style.textShadow='0 0 16px rgba(255,215,0,.6)';
+
+      wrap.appendChild(top);
+      wrap.appendChild(bot);
+      return wrap;
+    }
+
+    /* ── Answer buttons: emoji grid + number ── */
+    function renderAnswers(){
+      const cont=document.getElementById('answers');
+      cont.innerHTML='';
+
+      /* Wrong options */
+      const opts=new Set([correct]);
+      while(opts.size<4){
+        const d=Math.floor(Math.random()*5)+1;
+        const w=Math.random()<.5?correct+d:Math.max(1,correct-d);
+        if(w!==correct&&w>0)opts.add(w);
+      }
+      const shuffled=[...opts].sort(()=>Math.random()-.5);
+
+      /* Pick a mix emoji for the answer buttons */
+      const btnEmojis=[emojiA,emojiB];
+
+      shuffled.forEach(val=>{
+        const btn=document.createElement('button');
+        btn.className='ans-btn';
+
+        /* Mini emoji grid */
+        const grid=el('div','btn-emoji-grid');
+        for(let i=0;i<val;i++){
+          grid.appendChild(el('span','btn-emoji', btnEmojis[i%2]));
+        }
+
+        const num=el('div','btn-number',String(val));
+
+        btn.appendChild(grid);
+        btn.appendChild(num);
+        btn.addEventListener('click',()=>checkAnswer(btn,val));
+        cont.appendChild(btn);
+      });
+    }
+
+    /* ── Check answer ── */
+    function checkAnswer(btn,val){
+      if(answered)return;
+      answered=true;
+      document.querySelectorAll('.ans-btn').forEach(b=>b.disabled=true);
+
+      if(val===correct){
+        btn.classList.add('correct-ans');
+        document.getElementById('question-card').classList.add('correct');
+        streak++;
+        const bonus=streak>=3?20:10;
+        score+=bonus;
+        document.getElementById('score').textContent=score;
+        document.getElementById('streak').textContent=`🔥 ${streak}`;
+
+        const msg=streak>=5?`🏆 ¡RACHA DE ${streak}! +${bonus} PTS`:
+                  streak>=3?`⭐ ¡INCREÍBLE! RACHA DE ${streak}! +${bonus} PTS`:
+                            `✅ ¡CORRECTO! ${numA} + ${numB} = ${correct}`;
+        setMsg(msg,'correct');
+        burst();
+
+        correctInLevel++;
+        if(correctInLevel>=ADVANCE&&levelIdx<LEVELS.length-1){
+          levelIdx++;correctInLevel=0;updateBadge();
+          setTimeout(()=>setMsg(`🚀 ¡SUBISTE AL NIVEL ${LEVELS[levelIdx].label}!`,'correct'),800);
+        }
+      } else {
+        btn.classList.add('wrong-ans');
+        document.getElementById('question-card').classList.add('wrong');
+        streak=0;
+        document.getElementById('streak').textContent='🔥 0';
+        setMsg(`❌ ¡CASI! LA RESPUESTA ES ${correct}`,'wrong');
+        document.querySelectorAll('.ans-btn').forEach(b=>{
+          if(parseInt(b.querySelector('.btn-number').textContent)===correct)
+            b.classList.add('correct-ans');
+        });
+      }
+      document.getElementById('next-btn').style.display='inline-block';
+    }
+
+    function nextQuestion(){ newQuestion(); }
+
+    function updateBadge(){
+      const l=LEVELS[levelIdx];
+      document.getElementById('level-badge').textContent=`NIVEL ${l.label} — ${l.desc}`;
+    }
+    function setMsg(t,c){const e=document.getElementById('message');e.textContent=t;e.className=c;}
+
+    /* Helper to create elements */
+    function el(tag,cls,text){
+      const e=document.createElement(tag);
+      if(cls)e.className=cls;
+      if(text!=null)e.textContent=text;
+      return e;
+    }
+
+    newQuestion();
+  </script>
+</body>
+</html>

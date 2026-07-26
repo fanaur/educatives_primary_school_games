@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Banderas del Mundo – Juegos de Letras</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f1a;
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y: auto; overflow-x: hidden;
+      user-select: none;
+    }
+
+    canvas#bg {
+      position: fixed; top: 0; left: 0;
+      width: 100%; height: 100%; z-index: 0;
+    }
+
+    #game {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 18px;
+      padding: 20px; width: 100%;
+    }
+
+    /* ── Top bar ── */
+    #topbar {
+      display: flex; align-items: center;
+      gap: 16px; width: 100%; max-width: 720px;
+    }
+    .home-btn {
+      text-decoration: none;
+      background: rgba(255,255,255,0.08);
+      border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 50%; width: 46px; height: 46px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .home-btn:hover { border-color: #FFD700; background: rgba(255,215,0,0.1); }
+    .page-title {
+      color: #FFD700; font-size: 26px;
+      text-shadow: 0 0 20px rgba(255,215,0,0.4), 2px 2px 0 #b8860b;
+      letter-spacing: 2px;
+    }
+
+    /* ── HUD ── */
+    #hud { display: flex; gap: 40px; align-items: center; }
+    .hud-box { text-align: center; }
+    .hud-label { color: #64748b; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+    .hud-value { color: #FFD700; font-size: 30px; font-weight: bold; text-shadow: 0 0 18px rgba(255,215,0,0.5); }
+
+    /* ── Flag card ── */
+    #flag-card {
+      background: rgba(255,255,255,0.06);
+      border: 2px solid rgba(255,255,255,0.12);
+      border-radius: 28px;
+      padding: 18px 50px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 6px;
+      transition: border-color 0.3s;
+    }
+    #flag-card.correct { border-color: #22c55e; box-shadow: 0 0 30px rgba(34,197,94,0.25); }
+    #flag-card.wrong   { border-color: #ef4444; box-shadow: 0 0 30px rgba(239,68,68,0.2); }
+
+    #flag-emoji { font-size: 5rem; line-height: 1; }
+    #flag-label { color: #64748b; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+
+    /* ── Message ── */
+    #message {
+      color: #e2e8f0; font-size: 17px; letter-spacing: 1px;
+      min-height: 26px; text-align: center;
+    }
+    #message.correct { color: #22c55e; text-shadow: 0 0 12px rgba(34,197,94,0.5); }
+    #message.wrong   { color: #ef4444; text-shadow: 0 0 12px rgba(239,68,68,0.5); }
+
+    /* ── Word row ── */
+    #word-row {
+      display: flex; gap: 8px;
+      flex-wrap: wrap; justify-content: center;
+    }
+
+    /* Fixed letters (shown) */
+    .letter-fixed {
+      width: 62px; height: 68px;
+      background: rgba(255,255,255,0.07);
+      border: 2px solid rgba(255,255,255,0.18);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; font-weight: bold; color: #FFD700;
+    }
+
+    /* Blank slots (drop zones) */
+    .slot {
+      width: 62px; height: 68px;
+      border: 3px dashed rgba(255,255,255,0.22);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; font-weight: bold; color: #FFD700;
+      background: rgba(255,255,255,0.03);
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    }
+    .slot.drag-over {
+      border-color: #FFD700; border-style: solid;
+      background: rgba(255,215,0,0.14); transform: scale(1.09);
+    }
+    .slot.filled  { border-style: solid; border-color: rgba(255,255,255,0.28); background: rgba(255,255,255,0.07); }
+    .slot.correct { border-color: #22c55e; background: rgba(34,197,94,0.18); color: #22c55e; }
+    .slot.wrong   { border-color: #ef4444; background: rgba(239,68,68,0.18); color: #ef4444; }
+
+    @keyframes shake {
+      0%,100%{ transform:translateX(0); }
+      20%    { transform:translateX(-6px); }
+      40%    { transform:translateX(6px); }
+      60%    { transform:translateX(-4px); }
+      80%    { transform:translateX(4px); }
+    }
+    .slot.shake { animation: shake 0.4s ease; }
+
+    /* ── Tiles ── */
+    #tiles {
+      display: flex; gap: 12px;
+      flex-wrap: wrap; justify-content: center;
+      max-width: 520px;
+      margin-top: 14px;
+    }
+
+    .tile {
+      width: 72px; height: 80px;
+      background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+      border: 2px solid #60a5fa;
+      color: #ffffff; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem; font-weight: bold;
+      cursor: grab;
+      box-shadow: 0 4px 18px rgba(59,130,246,0.45);
+      transition: transform 0.12s, border-color 0.12s, opacity 0.15s;
+    }
+    .tile:hover    { transform: scale(1.1) translateY(-5px); border-color: #93c5fd; box-shadow: 0 8px 24px rgba(59,130,246,0.6); }
+    .tile.dragging { opacity: 0.3; cursor: grabbing; }
+    .tile.used     { visibility: hidden; pointer-events: none; }
+
+    /* ── Next button ── */
+    #next-btn {
+      display: none;
+      padding: 12px 36px;
+      font-size: 1.2rem; font-family: inherit; font-weight: bold;
+      color: #1a1a1a;
+      background: linear-gradient(90deg, #FFD700, #F59E0B);
+      border: none; border-radius: 50px; cursor: pointer;
+      box-shadow: 0 5px 20px rgba(255,215,0,0.35);
+      transition: transform 0.12s;
+    }
+    #next-btn:hover { transform: scale(1.07); }
+
+    /* ── Speak button ── */
+    #speak-btn {
+      padding: 10px 26px;
+      font-size: 1rem; font-family: inherit; font-weight: bold;
+      color: #ffffff;
+      background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+      border: 2px solid #60a5fa;
+      border-radius: 50px; cursor: pointer;
+      box-shadow: 0 4px 18px rgba(59,130,246,0.4);
+      transition: transform 0.12s, box-shadow 0.12s;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #speak-btn:hover { transform: scale(1.07); box-shadow: 0 6px 24px rgba(59,130,246,0.6); }
+    #speak-btn.speaking {
+      background: linear-gradient(135deg, #22C55E, #15803D);
+      border-color: #4ade80;
+      box-shadow: 0 4px 18px rgba(34,197,94,0.5);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html">🏠</a>
+      <span class="page-title">🌍 BANDERAS DEL MUNDO</span>
+    </div>
+
+    <div id="hud">
+      <div class="hud-box"><div class="hud-label">Puntos</div><div class="hud-value" id="score">0</div></div>
+      <div class="hud-box"><div class="hud-label">Nivel</div><div class="hud-value" id="level-num">1</div></div>
+      <div class="hud-box"><div class="hud-label">País</div><div class="hud-value" id="country-num">1</div></div>
+    </div>
+
+    <div id="flag-card">
+      <div id="flag-emoji">🌍</div>
+      <div id="flag-label">¿De qué país es esta bandera?</div>
+    </div>
+
+    <div id="message">¡ARRASTRA LAS LETRAS PARA COMPLETAR EL NOMBRE!</div>
+
+    <div id="word-row"></div>
+    <div id="tiles"></div>
+
+    <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; justify-content:center;">
+      <button id="speak-btn" onclick="speakCountry()">
+        🔊 <span id="speak-label">ESCUCHAR NOMBRE</span>
+      </button>
+      <button id="next-btn" onclick="nextCountry()">SIGUIENTE PAÍS ➡️</button>
+    </div>
+  </div>
+
+  <!-- Level-up overlay -->
+  <div id="levelup-overlay" style="
+    display:none; position:fixed; inset:0; z-index:100;
+    background:rgba(0,0,0,0.75);
+    display:none; flex-direction:column;
+    align-items:center; justify-content:center; gap:20px;
+  ">
+    <div style="font-size:4rem">🌍⭐🌎</div>
+    <div id="levelup-title" style="
+      font-family:'Arial Rounded MT Bold',Arial,sans-serif;
+      font-size:2.2rem; color:#FFD700; font-weight:bold;
+      text-shadow:0 0 30px rgba(255,215,0,0.6),3px 3px 0 #b8860b;
+      letter-spacing:3px; text-align:center;
+    ">¡NIVEL 2!</div>
+    <div id="levelup-sub" style="
+      font-family:'Arial Rounded MT Bold',Arial,sans-serif;
+      font-size:1.1rem; color:#cbd5e1; letter-spacing:2px; text-align:center;
+    ">¡NOMBRES MÁS LARGOS!</div>
+    <button onclick="dismissLevelUp()" style="
+      padding:12px 40px; font-size:1.2rem;
+      font-family:'Arial Rounded MT Bold',Arial,sans-serif; font-weight:bold;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      color:#1a1a1a; border:none; border-radius:50px; cursor:pointer;
+      box-shadow:0 5px 20px rgba(255,215,0,0.4);
+    ">¡VAMOS! 🚀</button>
+  </div>
+
+  <script>
+    /* ── Starfield ── */
+    const canvas=document.getElementById('bg'), ctx=canvas.getContext('2d');
+    function resize(){canvas.width=innerWidth;canvas.height=innerHeight;}
+    resize(); window.addEventListener('resize',resize);
+    const stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*1.5,speed:.00008+Math.random()*.00015,twinkle:Math.random()*Math.PI*2}));
+    const floaters='🌍🌎🌏🗺️'.split('').concat('ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')).map(c=>({text:c,x:Math.random(),y:Math.random(),speed:.0001+Math.random()*.0002,size:13+Math.random()*15,alpha:.03+Math.random()*.05}));
+    function drawBg(){
+      const W=canvas.width,H=canvas.height;
+      ctx.fillStyle='#0f0f1a'; ctx.fillRect(0,0,W,H);
+      for(const s of stars){s.twinkle+=s.speed*60;ctx.globalAlpha=.4+Math.sin(s.twinkle)*.4;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);ctx.fill();}
+      for(const f of floaters){f.y-=f.speed;if(f.y<-.05)f.y=1.05;ctx.globalAlpha=f.alpha;ctx.fillStyle='#FFD700';ctx.font=`bold ${f.size}px Arial`;ctx.textAlign='center';ctx.fillText(f.text,f.x*W,f.y*H);}
+      ctx.globalAlpha=1; requestAnimationFrame(drawBg);
+    }
+    drawBg();
+
+    /* ──────────────────────────────────────────
+       COUNTRY DATA
+       hide: indices of letters the child must type
+    ────────────────────────────────────────── */
+    const COUNTRIES = [
+      // Very short / easy
+      { name:'CUBA',      flag:'🇨🇺', hide:[0,2]       },  // _U_A
+      { name:'PERU',      flag:'🇵🇪', hide:[1,3]       },  // P_R_
+      { name:'IRAN',      flag:'🇮🇷', hide:[0,2]       },  // _R_N
+      // 5-letter
+      { name:'CHINA',     flag:'🇨🇳', hide:[2,4]       },  // CH_N_
+      { name:'CHILE',     flag:'🇨🇱', hide:[0,4]       },  // _HIL_
+      { name:'JAPON',     flag:'🇯🇵', hide:[1,3]       },  // J_P_N
+      { name:'COREA',     flag:'🇰🇷', hide:[1,4]       },  // C_RE_
+      { name:'INDIA',     flag:'🇮🇳', hide:[0,3]       },  // _NDI_  → wait I(0)N(1)D(2)I(3)A(4) → hide[0,3] = _NDI_ → hidden I,I
+      { name:'RUSIA',     flag:'🇷🇺', hide:[0,4]       },  // _USI_
+      { name:'GHANA',     flag:'🇬🇭', hide:[1,3]       },  // G_AN_  → G(0)H(1)A(2)N(3)A(4) → hidden H,N
+      { name:'NEPAL',     flag:'🇳🇵', hide:[1,3]       },  // N_P_L
+      // 6-letter
+      { name:'BRASIL',    flag:'🇧🇷', hide:[1,4]       },  // B_AS_L
+      { name:'ITALIA',    flag:'🇮🇹', hide:[0,4]       },  // _TAL_A
+      { name:'ESPANA',    flag:'🇪🇸', hide:[0,4]       },  // _SPA_A
+      { name:'GRECIA',    flag:'🇬🇷', hide:[1,4]       },  // G_EC_A
+      { name:'EGIPTO',    flag:'🇪🇬', hide:[0,5]       },  // _GIPT_
+      { name:'CANADA',    flag:'🇨🇦', hide:[1,4]       },  // C_N_DA → wait C(0)A(1)N(2)A(3)D(4)A(5) → hide[1,4] = C_NA_A → hidden A,D
+      { name:'SUECIA',    flag:'🇸🇪', hide:[2,5]       },  // SU_CI_
+      { name:'MEXICO',    flag:'🇲🇽', hide:[1,4]       },  // M_XIC_ → wait M(0)E(1)X(2)I(3)C(4)O(5) → hide[1,4] = M_XI_O → hidden E,C
+      { name:'FRANCE',    flag:'🇫🇷', hide:[1,4]       },  // F_ANC_ → F(0)R(1)A(2)N(3)C(4)E(5) → hidden R,C - actually in spanish it's FRANCIA
+      // 7-letter
+      { name:'IRLANDA',   flag:'🇮🇪', hide:[0,4]       },  // _RLA_DA → I(0)R(1)L(2)A(3)N(4)D(5)A(6) → hidden I,N
+      { name:'AUSTRIA',   flag:'🇦🇹', hide:[1,5]       },  // A_STR_A → hidden U,I
+      { name:'VIETNAM',   flag:'🇻🇳', hide:[1,5]       },  // V_ETN_M → hidden I,A
+      { name:'URUGUAY',   flag:'🇺🇾', hide:[0,4]       },  // _RUG_AY → hidden U,U → U(0)R(1)U(2)G(3)U(4)A(5)Y(6) → hidden U,U
+      { name:'NIGERIA',   flag:'🇳🇬', hide:[1,5]       },  // N_GER_A → hidden I,I
+      { name:'TURQUIA',   flag:'🇹🇷', hide:[2,5]       },  // TU_QU_A → T(0)U(1)R(2)Q(3)U(4)I(5)A(6) → hidden R,I
+      // 8-9 letter
+      { name:'NORUEGA',   flag:'🇳🇴', hide:[1,4]       },  // N_RU_GA → N(0)O(1)R(2)U(3)E(4)G(5)A(6) → hidden O,E
+      { name:'PORTUGAL',  flag:'🇵🇹', hide:[2,5]       },  // PO_TU_AL → P(0)O(1)R(2)T(3)U(4)G(5)A(6)L(7) → hidden R,G
+      { name:'ALEMANIA',  flag:'🇩🇪', hide:[1,5]       },  // A_EMAN_A → A(0)L(1)E(2)M(3)A(4)N(5)I(6)A(7) → hidden L,N
+      { name:'ARGENTINA', flag:'🇦🇷', hide:[0,4,8]     },  // _RGEN_IN_ → A(0)R(1)G(2)E(3)N(4)T(5)I(6)N(7)A(8) → hidden A,N,A
+    ];
+
+    /* Rename FRANCE → FRANCIA (7 letters, level 4) */
+    { const i=COUNTRIES.findIndex(c=>c.name==='FRANCE'); if(i>=0){ COUNTRIES[i].name='FRANCIA'; COUNTRIES[i].hide=[1,5]; } }
+
+    const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+    /* ── Build levels by name length ── */
+    const LEVEL_DEFS = [
+      { label:'1', sub:'¡Nombres cortos!',      lengths:[4]    },
+      { label:'2', sub:'¡5 letras!',             lengths:[5]    },
+      { label:'3', sub:'¡6 letras!',             lengths:[6]    },
+      { label:'4', sub:'¡7 letras!',             lengths:[7]    },
+      { label:'5', sub:'¡Nombres muy largos!',   lengths:[8,9]  },
+    ];
+
+    const LEVELS = LEVEL_DEFS.map(def =>
+      COUNTRIES.filter(c => def.lengths.includes(c.name.length))
+               .sort(()=>Math.random()-.5)  // shuffle within level
+    );
+
+    let score=0, countryNum=1, current=null;
+    let slotValues=[], dragTile=null, locked=false;
+    let levelIdx=0, levelQueue=[], pendingLevelUp=false;
+
+    /* ── Pick next country from current level queue ── */
+    function pickCountry(){
+      /* Refill queue when empty */
+      if(levelQueue.length===0){
+        if(levelIdx < LEVELS.length-1){
+          pendingLevelUp=true;   // show level-up before next game
+          levelIdx++;
+        }
+        levelQueue=[...LEVELS[levelIdx]].sort(()=>Math.random()-.5);
+      }
+      return levelQueue.shift();
+    }
+
+    /* ── Build game (first load) ── */
+    function buildGame(){
+      current=pickCountry();
+      slotValues=new Array(current.hide.length).fill('');
+      locked=false;
+      renderGame();
+    }
+
+    /* ── Render current country ── */
+    function renderGame(){
+      document.getElementById('flag-emoji').textContent=current.flag;
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('flag-card').className='';
+      document.getElementById('level-num').textContent=levelIdx+1;
+      document.getElementById('country-num').textContent=countryNum;
+      setMessage('¡ARRASTRA LAS LETRAS PARA COMPLETAR EL NOMBRE!','');
+
+      /* Word row */
+      const rowEl=document.getElementById('word-row');
+      rowEl.innerHTML='';
+      for(let i=0;i<current.name.length;i++){
+        const hidePos=current.hide.indexOf(i);
+        if(hidePos===-1){
+          /* Fixed letter */
+          const el=document.createElement('div');
+          el.className='letter-fixed';
+          el.textContent=current.name[i];
+          rowEl.appendChild(el);
+        } else {
+          /* Blank slot */
+          const el=document.createElement('div');
+          el.className='slot';
+          el.dataset.hideIndex=String(hidePos);
+          el.addEventListener('dragover', e=>{ e.preventDefault(); if(!locked) el.classList.add('drag-over'); });
+          el.addEventListener('dragleave', ()=>el.classList.remove('drag-over'));
+          el.addEventListener('drop', e=>onDrop(e,el));
+          rowEl.appendChild(el);
+        }
+      }
+
+      /* Tile pool: hidden letters + 2 distractors */
+      const hiddenLetters=current.hide.map(i=>current.name[i]);
+      const distractors=getDistractors(hiddenLetters, 2);
+      const pool=[...hiddenLetters,...distractors].sort(()=>Math.random()-.5);
+
+      const tilesEl=document.getElementById('tiles');
+      tilesEl.innerHTML='';
+      pool.forEach((l,i)=>{
+        const tile=document.createElement('div');
+        tile.className='tile';
+        tile.textContent=l;
+        tile.draggable=true;
+        tile.dataset.id=String(i);
+        tile.addEventListener('dragstart', e=>{
+          dragTile=tile;
+          tile.classList.add('dragging');
+          e.dataTransfer.effectAllowed='move';
+        });
+        tile.addEventListener('dragend', ()=>tile.classList.remove('dragging'));
+        tilesEl.appendChild(tile);
+      });
+    }
+
+    /* Generate distractor letters not in the hidden set */
+    function getDistractors(hidden, count){
+      const candidates=ALPHABET.split('').filter(l=>!hidden.includes(l));
+      const result=[];
+      while(result.length<count && candidates.length>0){
+        const i=Math.floor(Math.random()*candidates.length);
+        result.push(candidates.splice(i,1)[0]);
+      }
+      return result;
+    }
+
+    /* ── Drop handler ── */
+    function onDrop(e, slot){
+      e.preventDefault();
+      slot.classList.remove('drag-over');
+      if(!dragTile||locked) return;
+
+      const hideIdx=parseInt(slot.dataset.hideIndex);
+
+      /* If slot already has a letter → return it */
+      if(slotValues[hideIdx]!==''){
+        returnTileFor(slotValues[hideIdx], hideIdx);
+      }
+
+      slotValues[hideIdx]=dragTile.textContent;
+      slot.textContent=dragTile.textContent;
+      slot.classList.add('filled');
+      slot.classList.remove('correct','wrong');
+      dragTile.classList.add('used');
+      dragTile=null;
+
+      /* Auto-validate when all slots filled */
+      if(slotValues.every(v=>v!=='')){
+        setTimeout(validate, 300);
+      }
+    }
+
+    /* Return a tile to pool */
+    function returnTileFor(letter, hideIdx){
+      const tiles=document.querySelectorAll('.tile.used');
+      for(const t of tiles){
+        if(t.textContent===letter){ t.classList.remove('used'); break; }
+      }
+      slotValues[hideIdx]='';
+      const slot=document.querySelector(`.slot[data-hide-index="${hideIdx}"]`);
+      if(slot){ slot.textContent=''; slot.classList.remove('filled','correct','wrong'); }
+    }
+
+    /* ── Validate ── */
+    function validate(){
+      const slots=document.querySelectorAll('.slot');
+      let allCorrect=true;
+
+      slots.forEach(slot=>{
+        const hideIdx=parseInt(slot.dataset.hideIndex);
+        const expected=current.name[current.hide[hideIdx]];
+        if(slotValues[hideIdx]===expected){
+          slot.classList.add('correct'); slot.classList.remove('wrong');
+        } else {
+          slot.classList.add('wrong'); slot.classList.remove('correct');
+          allCorrect=false;
+        }
+      });
+
+      if(allCorrect){
+        locked=true;
+        score+=10; document.getElementById('score').textContent=score;
+        document.getElementById('flag-card').classList.add('correct');
+        setMessage(`⭐ ¡CORRECTO! ES ${current.name}!`,'correct');
+        document.getElementById('next-btn').style.display='inline-block';
+      } else {
+        document.getElementById('flag-card').classList.add('wrong');
+        setMessage('❌ ¡CASI! — VUELVE A INTENTARLO','wrong');
+        /* Shake wrong slots */
+        document.querySelectorAll('.slot.wrong').forEach(s=>{
+          s.classList.add('shake');
+          s.addEventListener('animationend',()=>s.classList.remove('shake'),{once:true});
+        });
+        /* Return wrong tiles after 1s */
+        setTimeout(()=>{
+          document.getElementById('flag-card').classList.remove('wrong');
+          document.querySelectorAll('.slot.wrong').forEach(s=>{
+            const hi=parseInt(s.dataset.hideIndex);
+            returnTileFor(slotValues[hi],hi);
+          });
+          setMessage('¡ARRASTRA LAS LETRAS PARA COMPLETAR EL NOMBRE!','');
+        }, 1000);
+      }
+    }
+
+    /* ── Next country ── */
+    function nextCountry(){
+      countryNum++;
+      /* Pre-call pickCountry to check if a level-up is pending */
+      const nextC=pickCountry();
+      if(pendingLevelUp){
+        pendingLevelUp=false;
+        const def=LEVEL_DEFS[levelIdx];
+        document.getElementById('levelup-title').textContent=`¡NIVEL ${def.label}!`;
+        document.getElementById('levelup-sub').textContent=def.sub;
+        const ov=document.getElementById('levelup-overlay');
+        ov.style.display='flex';
+        /* Store next country so dismissLevelUp can use it */
+        window._nextCountry=nextC;
+      } else {
+        current=nextC;
+        slotValues=new Array(current.hide.length).fill('');
+        locked=false;
+        renderGame();
+      }
+    }
+
+    function dismissLevelUp(){
+      document.getElementById('levelup-overlay').style.display='none';
+      current=window._nextCountry;
+      slotValues=new Array(current.hide.length).fill('');
+      locked=false;
+      renderGame();
+    }
+
+    function setMessage(text,cls){
+      const el=document.getElementById('message');
+      el.textContent=text; el.className=cls;
+    }
+
+    /* ── Speak country name in Spanish ── */
+    function speakCountry(){
+      if(!current) return;
+      if(!window.speechSynthesis) return;
+
+      window.speechSynthesis.cancel();
+
+      const btn = document.getElementById('speak-btn');
+      const label = document.getElementById('speak-label');
+      btn.classList.add('speaking');
+      label.textContent = 'LEYENDO...';
+
+      const utterance = new SpeechSynthesisUtterance(current.name);
+      utterance.rate  = 0.72;   // un poco más despacio
+      utterance.pitch = 1.0;
+
+      /* Preferencia de voces: latino primero, luego cualquier español */
+      const voices = window.speechSynthesis.getVoices();
+      const latinLangs = ['es-MX','es-AR','es-CO','es-CL','es-US','es-419'];
+      let picked =
+        /* 1. Voz latina por nombre conocido (macOS: Paulina, mónica latinoam.) */
+        voices.find(v => /paulina|diego|jorge|carlos|juan|lucia/i.test(v.name)) ||
+        /* 2. Cualquier locale latino */
+        voices.find(v => latinLangs.some(l => v.lang === l)) ||
+        /* 3. Cualquier español */
+        voices.find(v => v.lang.startsWith('es')) ||
+        null;
+
+      if(picked){
+        utterance.voice = picked;
+        utterance.lang  = picked.lang;
+      } else {
+        utterance.lang = 'es-MX';
+      }
+
+      utterance.onend = () => {
+        btn.classList.remove('speaking');
+        label.textContent = 'ESCUCHAR NOMBRE';
+      };
+      utterance.onerror = () => {
+        btn.classList.remove('speaking');
+        label.textContent = 'ESCUCHAR NOMBRE';
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    /* Load voices (some browsers load them async) */
+    if(window.speechSynthesis && window.speechSynthesis.onvoiceschanged !== undefined){
+      window.speechSynthesis.onvoiceschanged = () => {};
+    }
+
+    /* Seed first level queue */
+    levelQueue=[...LEVELS[0]].sort(()=>Math.random()-.5);
+    buildGame();
+  </script>
+</body>
+</html>

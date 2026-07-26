@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Secuencia de Números – MicaGames</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background: #0f0f1a;
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y: auto; overflow-x: hidden;
+      user-select: none;
+    }
+
+    canvas#bg { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+
+    #game {
+      position: relative; z-index:1;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 20px;
+      padding: 20px 16px 36px;
+      width: 100%; max-width: 680px;
+    }
+
+    /* ── Top bar ── */
+    #topbar { display:flex; align-items:center; gap:14px; width:100%; }
+    .home-btn {
+      text-decoration:none;
+      background:rgba(255,255,255,0.08);
+      border:2px solid rgba(255,255,255,0.15);
+      border-radius:50%; width:44px; height:44px;
+      display:flex; align-items:center; justify-content:center; font-size:1.3rem;
+      transition:border-color .15s, background .15s;
+    }
+    .home-btn:hover { border-color:#FFD700; background:rgba(255,215,0,.1); }
+    .page-title {
+      color:#FFD700; font-size:22px;
+      text-shadow:0 0 20px rgba(255,215,0,.4), 2px 2px 0 #b8860b;
+      letter-spacing:2px;
+    }
+
+    /* ── HUD ── */
+    #hud { display:flex; gap:28px; align-items:center; }
+    .hud-box { text-align:center; }
+    .hud-label { color:#64748b; font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+    .hud-value { color:#FFD700; font-size:26px; font-weight:bold; text-shadow:0 0 14px rgba(255,215,0,.4); }
+
+    #level-badge {
+      background:rgba(255,215,0,.1); border:2px solid rgba(255,215,0,.3);
+      color:#FFD700; font-size:13px; letter-spacing:2px;
+      padding:5px 16px; border-radius:20px;
+    }
+
+    /* ── Sequence card ── */
+    #seq-card {
+      width:100%;
+      background:rgba(255,255,255,.05);
+      border:2px solid rgba(255,255,255,.1);
+      border-radius:28px;
+      padding:28px 16px 22px;
+      display:flex; flex-direction:column;
+      align-items:center; gap:20px;
+      transition:border-color .3s, box-shadow .3s;
+    }
+    #seq-card.correct { border-color:#22c55e; box-shadow:0 0 36px rgba(34,197,94,.25); }
+    #seq-card.wrong   { border-color:#ef4444; box-shadow:0 0 36px rgba(239,68,68,.2); }
+
+    /* ── Number tiles row ── */
+    #seq-row {
+      display:flex; align-items:center;
+      gap:10px; flex-wrap:wrap; justify-content:center;
+    }
+
+    .num-tile {
+      width:72px; height:72px;
+      border-radius:16px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:2rem; font-weight:bold;
+      border:3px solid rgba(255,255,255,.15);
+      background:rgba(255,255,255,.07);
+      color:#e2e8f0;
+      animation: popIn .28s cubic-bezier(.175,.885,.32,1.275) both;
+    }
+    @keyframes popIn {
+      from { transform:scale(0) rotate(-8deg); opacity:0; }
+      to   { transform:scale(1) rotate(0);     opacity:1; }
+    }
+    .num-tile.blank {
+      background:rgba(255,215,0,.08);
+      border:3px dashed rgba(255,215,0,.5);
+      color:#FFD700;
+      font-size:2.4rem;
+      animation: pulse 1.1s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100%{ box-shadow:0 0 0 0 rgba(255,215,0,.3); }
+      50%    { box-shadow:0 0 0 10px rgba(255,215,0,0); }
+    }
+    .num-tile.blank.filled {
+      animation: none;
+      border-style: solid;
+    }
+    .num-tile.blank.correct-fill {
+      background:rgba(34,197,94,.25); border-color:#22c55e; color:#4ade80;
+    }
+    .num-tile.blank.wrong-fill {
+      background:rgba(239,68,68,.2); border-color:#ef4444; color:#f87171;
+    }
+
+    .dots {
+      color:#64748b; font-size:1.8rem; font-weight:bold;
+      letter-spacing:-2px;
+    }
+
+    /* ── Pattern hint ── */
+    #hint {
+      font-size:14px; color:#64748b; letter-spacing:1px;
+      min-height:20px; text-align:center;
+    }
+
+    /* ── Message ── */
+    #message {
+      font-size:17px; font-weight:bold; letter-spacing:1px;
+      min-height:26px; text-align:center; color:#e2e8f0;
+    }
+    #message.correct { color:#22c55e; text-shadow:0 0 12px rgba(34,197,94,.5); }
+    #message.wrong   { color:#ef4444; text-shadow:0 0 12px rgba(239,68,68,.5); }
+
+    /* ── Answer buttons ── */
+    #answers {
+      display:grid; grid-template-columns:repeat(2,1fr);
+      gap:12px; width:100%;
+    }
+
+    .ans-btn {
+      padding:18px 10px;
+      font-size:2rem; font-family:inherit; font-weight:bold; color:#fff;
+      background:rgba(59,130,246,.12);
+      border:3px solid rgba(59,130,246,.35);
+      border-radius:20px; cursor:pointer;
+      transition:transform .12s, background .12s, border-color .12s, box-shadow .12s;
+      position:relative; overflow:hidden;
+    }
+    .ans-btn::before {
+      content:''; position:absolute; inset:0;
+      background:linear-gradient(135deg,rgba(255,255,255,.06) 0%,transparent 60%);
+      border-radius:17px;
+    }
+    .ans-btn:hover:not(:disabled) {
+      transform:scale(1.05) translateY(-3px);
+      background:rgba(59,130,246,.28);
+      border-color:#60a5fa;
+      box-shadow:0 8px 28px rgba(59,130,246,.4);
+    }
+    .ans-btn:disabled { cursor:default; }
+    .ans-btn.correct-ans {
+      background:rgba(34,197,94,.28); border-color:#22c55e;
+      box-shadow:0 0 24px rgba(34,197,94,.5); transform:scale(1.06);
+    }
+    .ans-btn.wrong-ans {
+      background:rgba(239,68,68,.22); border-color:#ef4444;
+      animation:shake .4s ease;
+    }
+    @keyframes shake {
+      0%,100%{ transform:translateX(0); }
+      20%{ transform:translateX(-8px); }
+      40%{ transform:translateX(8px); }
+      60%{ transform:translateX(-5px); }
+      80%{ transform:translateX(5px); }
+    }
+
+    /* ── Next button ── */
+    #next-btn {
+      display:none; padding:13px 44px;
+      font-size:1.15rem; font-family:inherit; font-weight:bold; color:#1a1a1a;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      border:none; border-radius:50px; cursor:pointer;
+      box-shadow:0 5px 22px rgba(255,215,0,.4);
+      transition:transform .12s;
+    }
+    #next-btn:hover { transform:scale(1.07); }
+
+    .confetti-layer {
+      position:fixed; top:0; left:0; width:100%; height:100%;
+      pointer-events:none; z-index:50;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas id="confetti-canvas" class="confetti-layer"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html">🏠</a>
+      <span class="page-title">🔢 SECUENCIA DE NÚMEROS</span>
+    </div>
+
+    <div id="hud">
+      <div class="hud-box">
+        <div class="hud-label">Puntos</div>
+        <div class="hud-value" id="score">0</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">Racha</div>
+        <div class="hud-value" id="streak">🔥 0</div>
+      </div>
+    </div>
+
+    <div id="level-badge">NIVEL 1 — DE 1 EN 1</div>
+
+    <div id="seq-card">
+      <div id="seq-row"></div>
+      <div id="hint"></div>
+      <div id="message">¿QUÉ NÚMERO FALTA EN LA SECUENCIA?</div>
+    </div>
+
+    <div id="answers"></div>
+
+    <button id="next-btn" onclick="nextQ()">SIGUIENTE ➡️</button>
+  </div>
+
+  <script>
+    /* ── Starfield ── */
+    const bgC=document.getElementById('bg'),bgX=bgC.getContext('2d');
+    function rbg(){bgC.width=innerWidth;bgC.height=innerHeight;}
+    rbg();window.addEventListener('resize',rbg);
+    const stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*1.5,sp:.00008+Math.random()*.00015,tw:Math.random()*Math.PI*2}));
+    const bgF='0123456789'.split('').map(c=>({t:c,x:Math.random(),y:Math.random(),sp:.0001+Math.random()*.0002,sz:13+Math.random()*16,a:.04+Math.random()*.07}));
+    function drawBg(){const W=bgC.width,H=bgC.height;bgX.fillStyle='#0f0f1a';bgX.fillRect(0,0,W,H);for(const s of stars){s.tw+=s.sp*60;bgX.globalAlpha=.4+Math.sin(s.tw)*.4;bgX.fillStyle='#fff';bgX.beginPath();bgX.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);bgX.fill();}for(const f of bgF){f.y-=f.sp;if(f.y<-.05)f.y=1.05;bgX.globalAlpha=f.a;bgX.fillStyle='#FFD700';bgX.font=`bold ${f.sz}px Arial`;bgX.textAlign='center';bgX.fillText(f.t,f.x*W,f.y*H);}bgX.globalAlpha=1;requestAnimationFrame(drawBg);}
+    drawBg();
+
+    /* ── Confetti ── */
+    const cfC=document.getElementById('confetti-canvas'),cfX=cfC.getContext('2d');
+    cfC.width=innerWidth;cfC.height=innerHeight;
+    window.addEventListener('resize',()=>{cfC.width=innerWidth;cfC.height=innerHeight;});
+    let cp=[];
+    function burst(){const cols=['#FFD700','#22c55e','#3b82f6','#ec4899','#f97316','#8b5cf6'];for(let i=0;i<80;i++)cp.push({x:innerWidth/2+(Math.random()-.5)*340,y:innerHeight*.35,vx:(Math.random()-.5)*10,vy:-7-Math.random()*9,sz:6+Math.random()*8,col:cols[~~(Math.random()*cols.length)],rot:Math.random()*360,rv:(Math.random()-.5)*14,life:1});requestAnimationFrame(animCf);}
+    function animCf(){cfX.clearRect(0,0,cfC.width,cfC.height);cp=cp.filter(p=>p.life>.02);for(const p of cp){p.vy+=.38;p.x+=p.vx;p.y+=p.vy;p.rot+=p.rv;p.life-=.018;cfX.save();cfX.globalAlpha=p.life;cfX.translate(p.x,p.y);cfX.rotate(p.rot*Math.PI/180);cfX.fillStyle=p.col;cfX.fillRect(-p.sz/2,-p.sz/2,p.sz,p.sz*.55);cfX.restore();}if(cp.length>0)requestAnimationFrame(animCf);else cfX.clearRect(0,0,cfC.width,cfC.height);}
+
+    /* ────────────────────────────────────────
+       LEVEL DEFINITIONS
+       Each level defines how sequences are built:
+         step  = how much each number increases
+         start = range of possible starting numbers
+         len   = total numbers shown (including blank)
+    ──────────────────────────────────────── */
+    const LEVELS = [
+      { label:'1', desc:'DE 1 EN 1',    step:1,  startMin:1,  startMax:15, seqLen:5 },
+      { label:'2', desc:'DE 2 EN 2',    step:2,  startMin:0,  startMax:20, seqLen:5 },
+      { label:'3', desc:'DE 5 EN 5',    step:5,  startMin:0,  startMax:50, seqLen:5 },
+      { label:'4', desc:'DE 10 EN 10',  step:10, startMin:0,  startMax:80, seqLen:5 },
+      { label:'5', desc:'¡MIXTO!',       step:-1, startMin:1,  startMax:50, seqLen:6 },
+    ];
+
+    const MIXED_STEPS = [1,2,3,5,10];
+
+    let score=0, streak=0, levelIdx=0, correctInLevel=0;
+    const ADVANCE=5;
+
+    let sequence=[], blankIdx, correct, answered, currentStep;
+    /* Wrong answers are saved here and replayed after 2 questions */
+    let retryQueue=[], sinceLastRetry=0;
+    let isRetry=false;
+
+    /* ── Build a question ── */
+    function newQ(){
+      answered=false;
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('seq-card').className='';
+      document.getElementById('hint').textContent='';
+
+      /* Serve a retry after 2 new questions */
+      sinceLastRetry++;
+      if(retryQueue.length>0 && sinceLastRetry>=3){
+        sinceLastRetry=0;
+        loadRetry(retryQueue.shift());
+        return;
+      }
+
+      isRetry=false;
+      const lvl=LEVELS[levelIdx];
+      currentStep = lvl.step===-1
+        ? MIXED_STEPS[Math.floor(Math.random()*MIXED_STEPS.length)]
+        : lvl.step;
+
+      const start = lvl.startMin + Math.floor(Math.random()*(lvl.startMax-lvl.startMin+1));
+      const len   = lvl.seqLen;
+
+      sequence = Array.from({length:len}, (_,i)=>start + currentStep*i);
+      blankIdx = 1 + Math.floor(Math.random()*(len-2));
+      correct  = sequence[blankIdx];
+
+      renderSeq();
+      renderAnswers(currentStep);
+      setMsg('¿QUÉ NÚMERO FALTA EN LA SECUENCIA?','');
+    }
+
+    /* ── Load a saved retry question ── */
+    function loadRetry(saved){
+      isRetry=true;
+      sequence=saved.sequence;
+      blankIdx=saved.blankIdx;
+      correct=saved.correct;
+      currentStep=saved.step;
+
+      renderSeq();
+      renderAnswers(currentStep);
+      /* Show retry badge in hint area */
+      document.getElementById('hint').innerHTML=
+        '<span style="background:rgba(239,68,68,.15);border:1.5px solid #ef4444;color:#f87171;font-size:12px;letter-spacing:2px;padding:3px 12px;border-radius:20px">🔁 REPASO — ¡INTÉNTALO DE NUEVO!</span>';
+      setMsg('¿QUÉ NÚMERO FALTA EN LA SECUENCIA?','');
+    }
+
+    /* ── Render sequence tiles ── */
+    function renderSeq(){
+      const row=document.getElementById('seq-row');
+      row.innerHTML='';
+
+      sequence.forEach((n,i)=>{
+        if(i>0){
+          const dots=el('div','dots','···');
+          row.appendChild(dots);
+        }
+
+        const tile=el('div','num-tile', i===blankIdx ? '?' : String(n));
+        tile.style.animationDelay=(i*60)+'ms';
+        if(i===blankIdx) tile.classList.add('blank');
+        row.appendChild(tile);
+      });
+    }
+
+    /* ── Render 4 answer choices ── */
+    function renderAnswers(step){
+      const cont=document.getElementById('answers');
+      cont.innerHTML='';
+
+      const opts=new Set([correct]);
+
+      /* Generate plausible wrong answers near the correct one */
+      const deltas=[step, step*2, 1, 2, 3, step-1, step+1].filter(d=>d>0);
+      let attempts=0;
+      while(opts.size<4 && attempts<200){
+        attempts++;
+        const d=deltas[Math.floor(Math.random()*deltas.length)];
+        const sign=Math.random()<.5?1:-1;
+        const w=correct+sign*d;
+        if(w>0 && w!==correct) opts.add(w);
+      }
+      /* Fallback: add sequential neighbours */
+      for(let d=1; opts.size<4; d++){
+        if(correct+d>0) opts.add(correct+d);
+        if(opts.size<4 && correct-d>0) opts.add(correct-d);
+      }
+
+      [...opts].sort(()=>Math.random()-.5).forEach(val=>{
+        const btn=document.createElement('button');
+        btn.className='ans-btn';
+        btn.textContent=val;
+        btn.addEventListener('click',()=>checkAnswer(btn,val));
+        cont.appendChild(btn);
+      });
+    }
+
+    /* ── Check answer ── */
+    function checkAnswer(btn,val){
+      if(answered)return;
+      answered=true;
+      document.querySelectorAll('.ans-btn').forEach(b=>b.disabled=true);
+
+      /* Fill in the blank tile */
+      const blankTile=document.querySelectorAll('.num-tile')[blankIdx*2]; // *2 because of dots
+      /* Find blank tile more reliably */
+      const allTiles=document.querySelectorAll('.num-tile');
+      const bTile=[...allTiles].find(t=>t.classList.contains('blank'));
+
+      if(val===correct){
+        btn.classList.add('correct-ans');
+        if(bTile){ bTile.textContent=val; bTile.classList.add('filled','correct-fill'); }
+        document.getElementById('seq-card').classList.add('correct');
+        streak++; const bonus=streak>=3?20:10; score+=bonus;
+        document.getElementById('score').textContent=score;
+        document.getElementById('streak').textContent=`🔥 ${streak}`;
+        const msg=streak>=5?`🏆 ¡RACHA DE ${streak}! +${bonus} PTS`:
+                  streak>=3?`⭐ ¡GENIAL! RACHA DE ${streak}! +${bonus} PTS`:
+                            `✅ ¡CORRECTO! EL NÚMERO ES ${correct}`;
+        setMsg(msg,'correct');
+        burst();
+        correctInLevel++;
+        if(correctInLevel>=ADVANCE && levelIdx<LEVELS.length-1){
+          levelIdx++; correctInLevel=0; updateBadge();
+          setTimeout(()=>setMsg(`🚀 ¡NIVEL ${LEVELS[levelIdx].label}! ${LEVELS[levelIdx].desc}`,'correct'),900);
+        }
+        document.getElementById('next-btn').style.display='inline-block';
+      } else {
+        btn.classList.add('wrong-ans');
+        if(bTile){ bTile.textContent=val; bTile.classList.add('filled','wrong-fill'); }
+        document.getElementById('seq-card').classList.add('wrong');
+        streak=0; document.getElementById('streak').textContent='🔥 0';
+        setMsg('❌ ¡INCORRECTO!','wrong');
+        setTimeout(()=>retryQ(), 1200);
+      }
+    }
+
+    function nextQ(){ newQ(); }
+
+    /* Replay the exact same question with blank reset */
+    function retryQ(){
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('seq-card').className='';
+      answered=false;
+
+      /* Reset blank tile back to ? without re-rendering the whole sequence */
+      const bTile=document.querySelector('.num-tile.blank');
+      if(bTile){ bTile.textContent='?'; bTile.classList.remove('filled','wrong-fill','correct-fill'); }
+
+      /* Re-shuffle and re-enable answer buttons */
+      renderAnswers(currentStep);
+      setMsg('¿QUÉ NÚMERO FALTA EN LA SECUENCIA?','');
+    }
+
+    function updateBadge(){
+      const l=LEVELS[levelIdx];
+      document.getElementById('level-badge').textContent=`NIVEL ${l.label} — ${l.desc}`;
+    }
+    function setMsg(t,c){const e=document.getElementById('message');e.textContent=t;e.className=c;}
+    function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+
+    newQ();
+  </script>
+</body>
+</html>

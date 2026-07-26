@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Resta – MicaGames</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background:#0f0f1a;
+      min-height:100vh;
+      display:flex; flex-direction:column; align-items:center;
+      font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y:auto; overflow-x:hidden;
+      user-select:none;
+    }
+
+    canvas#bg { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+
+    #game {
+      position:relative; z-index:1;
+      display:flex; flex-direction:column;
+      align-items:center; gap:22px;
+      padding:20px 16px 36px;
+      width:100%; max-width:560px;
+    }
+
+    /* ── Top bar ── */
+    #topbar { display:flex; align-items:center; gap:14px; width:100%; }
+    .home-btn {
+      text-decoration:none;
+      background:rgba(255,255,255,0.08);
+      border:2px solid rgba(255,255,255,0.15);
+      border-radius:50%; width:44px; height:44px;
+      display:flex; align-items:center; justify-content:center; font-size:1.3rem;
+      transition:border-color .15s, background .15s;
+    }
+    .home-btn:hover { border-color:#FFD700; background:rgba(255,215,0,.1); }
+    .page-title {
+      color:#FFD700; font-size:22px;
+      text-shadow:0 0 20px rgba(255,215,0,.4), 2px 2px 0 #b8860b;
+      letter-spacing:2px;
+    }
+
+    /* ── HUD ── */
+    #hud { display:flex; gap:28px; align-items:center; }
+    .hud-box { text-align:center; }
+    .hud-label { color:#64748b; font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+    .hud-value { color:#FFD700; font-size:26px; font-weight:bold; text-shadow:0 0 14px rgba(255,215,0,.4); }
+
+    #level-badge {
+      background:rgba(255,215,0,.1); border:2px solid rgba(255,215,0,.3);
+      color:#FFD700; font-size:13px; letter-spacing:2px;
+      padding:5px 16px; border-radius:20px;
+    }
+
+    /* ── Problem card ── */
+    #problem-card {
+      width:100%;
+      background:rgba(255,255,255,.05);
+      border:2px solid rgba(255,255,255,.1);
+      border-radius:28px;
+      padding:32px 24px 28px;
+      display:flex; flex-direction:column;
+      align-items:center; gap:24px;
+      transition:border-color .3s, box-shadow .3s;
+    }
+    #problem-card.correct { border-color:#22c55e; box-shadow:0 0 40px rgba(34,197,94,.3); }
+    #problem-card.wrong   { border-color:#ef4444; box-shadow:0 0 40px rgba(239,68,68,.25); }
+
+    /* ── The equation ── */
+    #equation {
+      display:flex; align-items:center; justify-content:center;
+      gap:18px; flex-wrap:wrap;
+    }
+
+    .eq-num {
+      font-size:4rem; font-weight:bold; color:#FFD700;
+      text-shadow:0 0 24px rgba(255,215,0,.5);
+      animation:popIn .25s cubic-bezier(.175,.885,.32,1.275) both;
+    }
+    @keyframes popIn {
+      from { transform:scale(0); opacity:0; }
+      to   { transform:scale(1); opacity:1; }
+    }
+    .eq-op {
+      font-size:3.6rem; font-weight:bold; color:#ef4444;
+      text-shadow:0 0 20px rgba(239,68,68,.5);
+    }
+    .eq-eq {
+      font-size:3.6rem; font-weight:bold; color:#94a3b8;
+    }
+
+    /* ── Answer input ── */
+    #answer-wrap {
+      display:flex; align-items:center; gap:12px;
+    }
+
+    #answer-input {
+      width:140px; height:80px;
+      font-size:3rem; font-weight:bold; font-family:inherit;
+      text-align:center; color:#FFD700;
+      background:rgba(255,255,255,.06);
+      border:3px solid rgba(255,215,0,.4);
+      border-radius:18px; outline:none;
+      caret-color:#FFD700;
+      transition:border-color .2s, box-shadow .2s;
+      -moz-appearance: textfield;
+    }
+    #answer-input::-webkit-outer-spin-button,
+    #answer-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    #answer-input:focus {
+      border-color:#FFD700;
+      box-shadow:0 0 24px rgba(255,215,0,.3);
+    }
+    #answer-input.correct {
+      border-color:#22c55e; color:#4ade80;
+      box-shadow:0 0 24px rgba(34,197,94,.4);
+    }
+    #answer-input.wrong {
+      border-color:#ef4444; color:#f87171;
+      box-shadow:0 0 24px rgba(239,68,68,.4);
+      animation:shake .4s ease;
+    }
+    @keyframes shake {
+      0%,100%{ transform:translateX(0); }
+      20%{ transform:translateX(-10px); }
+      40%{ transform:translateX(10px); }
+      60%{ transform:translateX(-6px); }
+      80%{ transform:translateX(6px); }
+    }
+
+    /* ── Message ── */
+    #message {
+      font-size:17px; font-weight:bold; letter-spacing:1px;
+      min-height:26px; text-align:center; color:#e2e8f0;
+    }
+    #message.correct { color:#22c55e; text-shadow:0 0 12px rgba(34,197,94,.5); }
+    #message.wrong   { color:#ef4444; text-shadow:0 0 12px rgba(239,68,68,.5); }
+
+    /* ── On-screen number pad ── */
+    #numpad {
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:10px; width:100%;
+    }
+
+    .pad-btn {
+      padding:18px 10px;
+      font-size:1.8rem; font-family:inherit; font-weight:bold;
+      color:#fff;
+      background:rgba(255,255,255,.07);
+      border:2px solid rgba(255,255,255,.12);
+      border-radius:16px; cursor:pointer;
+      transition:transform .1s, background .1s;
+    }
+    .pad-btn:hover { background:rgba(255,255,255,.14); transform:scale(1.05); }
+    .pad-btn:active { transform:scale(0.95); }
+    .pad-btn.del {
+      background:rgba(239,68,68,.15);
+      border-color:rgba(239,68,68,.3);
+      color:#f87171;
+    }
+    .pad-btn.del:hover { background:rgba(239,68,68,.28); }
+
+    /* ── Next button ── */
+    #next-btn {
+      display:none; padding:13px 44px;
+      font-size:1.15rem; font-family:inherit; font-weight:bold; color:#1a1a1a;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      border:none; border-radius:50px; cursor:pointer;
+      box-shadow:0 5px 22px rgba(255,215,0,.4); transition:transform .12s;
+    }
+    #next-btn:hover { transform:scale(1.07); }
+
+    .confetti-layer { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:50; }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas id="confetti-canvas" class="confetti-layer"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html">🏠</a>
+      <span class="page-title">➖ PRÁCTICA DE RESTA</span>
+    </div>
+
+    <div id="hud">
+      <div class="hud-box">
+        <div class="hud-label">Puntos</div>
+        <div class="hud-value" id="score">0</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">Racha</div>
+        <div class="hud-value" id="streak">🔥 0</div>
+      </div>
+    </div>
+
+    <div id="level-badge">NIVEL 1 — HASTA 10</div>
+
+    <div id="problem-card">
+      <div id="equation"></div>
+      <div id="answer-wrap">
+        <input id="answer-input" type="number" min="0" placeholder="?" autocomplete="off" inputmode="numeric"/>
+      </div>
+      <div id="message">ESCRIBE EL RESULTADO</div>
+    </div>
+
+    <button id="next-btn" onclick="nextQ()">SIGUIENTE ➡️</button>
+
+    <!-- On-screen numpad for touch devices -->
+    <div id="numpad">
+      <button class="pad-btn" onclick="pad('1')">1</button>
+      <button class="pad-btn" onclick="pad('2')">2</button>
+      <button class="pad-btn" onclick="pad('3')">3</button>
+      <button class="pad-btn" onclick="pad('4')">4</button>
+      <button class="pad-btn" onclick="pad('5')">5</button>
+      <button class="pad-btn" onclick="pad('6')">6</button>
+      <button class="pad-btn" onclick="pad('7')">7</button>
+      <button class="pad-btn" onclick="pad('8')">8</button>
+      <button class="pad-btn" onclick="pad('9')">9</button>
+      <button class="pad-btn" onclick="pad('0')">0</button>
+      <button class="pad-btn del" onclick="pad('del')">⌫</button>
+    </div>
+  </div>
+
+  <script>
+    /* ── Starfield ── */
+    const bgC=document.getElementById('bg'),bgX=bgC.getContext('2d');
+    function rbg(){bgC.width=innerWidth;bgC.height=innerHeight;}
+    rbg();window.addEventListener('resize',rbg);
+    const stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*1.5,sp:.00008+Math.random()*.00015,tw:Math.random()*Math.PI*2}));
+    const bgF=['−','1','2','3','4','5','6','7','8','9','=','0'].map(c=>({t:c,x:Math.random(),y:Math.random(),sp:.0001+Math.random()*.0002,sz:13+Math.random()*16,a:.04+Math.random()*.07}));
+    function drawBg(){const W=bgC.width,H=bgC.height;bgX.fillStyle='#0f0f1a';bgX.fillRect(0,0,W,H);for(const s of stars){s.tw+=s.sp*60;bgX.globalAlpha=.4+Math.sin(s.tw)*.4;bgX.fillStyle='#fff';bgX.beginPath();bgX.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);bgX.fill();}for(const f of bgF){f.y-=f.sp;if(f.y<-.05)f.y=1.05;bgX.globalAlpha=f.a;bgX.fillStyle='#FFD700';bgX.font=`bold ${f.sz}px Arial`;bgX.textAlign='center';bgX.fillText(f.t,f.x*W,f.y*H);}bgX.globalAlpha=1;requestAnimationFrame(drawBg);}
+    drawBg();
+
+    /* ── Confetti ── */
+    const cfC=document.getElementById('confetti-canvas'),cfX=cfC.getContext('2d');
+    cfC.width=innerWidth;cfC.height=innerHeight;
+    window.addEventListener('resize',()=>{cfC.width=innerWidth;cfC.height=innerHeight;});
+    let cp=[];
+    function burst(){const cols=['#FFD700','#22c55e','#3b82f6','#ec4899','#f97316','#8b5cf6'];for(let i=0;i<80;i++)cp.push({x:innerWidth/2+(Math.random()-.5)*300,y:innerHeight*.38,vx:(Math.random()-.5)*10,vy:-7-Math.random()*9,sz:6+Math.random()*8,col:cols[~~(Math.random()*cols.length)],rot:Math.random()*360,rv:(Math.random()-.5)*14,life:1});requestAnimationFrame(animCf);}
+    function animCf(){cfX.clearRect(0,0,cfC.width,cfC.height);cp=cp.filter(p=>p.life>.02);for(const p of cp){p.vy+=.38;p.x+=p.vx;p.y+=p.vy;p.rot+=p.rv;p.life-=.018;cfX.save();cfX.globalAlpha=p.life;cfX.translate(p.x,p.y);cfX.rotate(p.rot*Math.PI/180);cfX.fillStyle=p.col;cfX.fillRect(-p.sz/2,-p.sz/2,p.sz,p.sz*.55);cfX.restore();}if(cp.length>0)requestAnimationFrame(animCf);else cfX.clearRect(0,0,cfC.width,cfC.height);}
+
+    /* ── Levels ── */
+    const LEVELS=[
+      {label:'1', desc:'HASTA 10',  max:10},
+      {label:'2', desc:'HASTA 20',  max:20},
+      {label:'3', desc:'HASTA 50',  max:50},
+      {label:'4', desc:'HASTA 100', max:100},
+    ];
+    const ADVANCE=5;
+
+    let score=0, streak=0, levelIdx=0, correctInLevel=0;
+    let numA, numB, correct, locked=false;
+
+    const input=document.getElementById('answer-input');
+
+    /* Submit on Enter key */
+    input.addEventListener('keydown', e=>{ if(e.key==='Enter') submitAnswer(); });
+
+    /* ── New question ── */
+    function newQ(){
+      locked=false;
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('problem-card').className='';
+      input.value='';
+      input.className='';
+      input.disabled=false;
+      setMsg('ESCRIBE EL RESULTADO Y PRESIONA ✓','');
+
+      const max=LEVELS[levelIdx].max;
+      numA=Math.floor(Math.random()*max)+1;
+      numB=Math.floor(Math.random()*numA);   // always numA >= numB → result >= 0
+      correct=numA-numB;
+
+      renderEq();
+      setTimeout(()=>input.focus(), 50);
+    }
+
+    function renderEq(){
+      const eq=document.getElementById('equation');
+      eq.innerHTML='';
+      const a=el('div','eq-num',String(numA)); a.style.animationDelay='0ms';
+      const op=el('div','eq-op','−');
+      const b=el('div','eq-num',String(numB)); b.style.animationDelay='80ms';
+      const eqs=el('div','eq-eq','=');
+      eq.appendChild(a); eq.appendChild(op); eq.appendChild(b); eq.appendChild(eqs);
+    }
+
+    /* ── On-screen pad ── */
+    function pad(v){
+      if(locked) return;
+      if(v==='del'){
+        input.value=input.value.slice(0,-1);
+      } else {
+        if(input.value.length<4) input.value+=v;
+      }
+      input.focus();
+
+      /* Auto-validate once enough digits are entered to match the answer */
+      if(v!=='del' && input.value.length>0 &&
+         input.value.length>=String(correct).length){
+        setTimeout(submitAnswer, 150);
+      }
+    }
+
+    /* ── Submit ── */
+    function submitAnswer(){
+      if(locked) return;
+      const val=parseInt(input.value,10);
+      if(isNaN(val)) { input.focus(); return; }
+
+      if(val===correct){
+        locked=true;
+        input.className='correct';
+        input.disabled=true;
+        document.getElementById('problem-card').classList.add('correct');
+        streak++; const bonus=streak>=3?20:10; score+=bonus;
+        document.getElementById('score').textContent=score;
+        document.getElementById('streak').textContent=`🔥 ${streak}`;
+        const msg=streak>=5?`🏆 ¡RACHA DE ${streak}! +${bonus} PTS`:
+                  streak>=3?`⭐ ¡GENIAL! RACHA DE ${streak}! +${bonus} PTS`:
+                            `✅ ¡CORRECTO! ${numA} − ${numB} = ${correct}`;
+        setMsg(msg,'correct');
+        burst();
+        correctInLevel++;
+        if(correctInLevel>=ADVANCE && levelIdx<LEVELS.length-1){
+          levelIdx++; correctInLevel=0; updateBadge();
+          setTimeout(()=>setMsg(`🚀 ¡NIVEL ${LEVELS[levelIdx].label}! ${LEVELS[levelIdx].desc}`,'correct'),900);
+        }
+        document.getElementById('next-btn').style.display='inline-block';
+      } else {
+        input.className='wrong';
+        document.getElementById('problem-card').classList.add('wrong');
+        streak=0; document.getElementById('streak').textContent='🔥 0';
+        setMsg('❌ ¡INCORRECTO! INTÉNTALO DE NUEVO','wrong');
+        setTimeout(()=>{
+          input.value='';
+          input.className='';
+          document.getElementById('problem-card').className='';
+          setMsg('ESCRIBE EL RESULTADO','');
+          input.focus();
+        }, 900);
+      }
+    }
+
+    function nextQ(){ newQ(); }
+    function updateBadge(){
+      const l=LEVELS[levelIdx];
+      document.getElementById('level-badge').textContent=`NIVEL ${l.label} — ${l.desc}`;
+    }
+    function setMsg(t,c){const e=document.getElementById('message');e.textContent=t;e.className=c;}
+    function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+
+    newQ();
+  </script>
+</body>
+</html>

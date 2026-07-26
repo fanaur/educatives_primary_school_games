@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>PESCA MATEMÁTICA</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f0f1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow: hidden;
+    }
+    #game-wrap {
+      position: relative;
+      width: min(800px, 100vw);
+    }
+    canvas {
+      display: block;
+      width: 100% !important;
+      height: auto !important;
+      border-radius: 12px;
+      box-shadow: 0 0 40px rgba(0,150,255,0.3);
+    }
+    #hud {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      pointer-events: none;
+    }
+    .hud-box {
+      background: rgba(0,0,0,0.55);
+      border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 10px;
+      padding: 6px 14px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .hud-box span { color: #FFD700; }
+    #equation-box {
+      position: absolute;
+      top: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,30,0.75);
+      border: 3px solid #FFD700;
+      border-radius: 16px;
+      padding: 10px 30px;
+      color: #FFD700;
+      font-size: 36px;
+      font-weight: bold;
+      letter-spacing: 4px;
+      pointer-events: none;
+      white-space: nowrap;
+      text-shadow: 0 0 10px rgba(255,215,0,0.5);
+    }
+    #rules-btn {
+      position: absolute;
+      bottom: 12px; right: 14px;
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      border: 2px solid #FFD700;
+      background: rgba(0,0,0,0.6);
+      color: #FFD700;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10;
+    }
+    #rules-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,30,0.92);
+      border-radius: 12px;
+      z-index: 20;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+      padding: 30px;
+    }
+    #rules-overlay.show { display: flex; }
+    #rules-overlay h2 { color: #FFD700; font-size: 28px; letter-spacing: 3px; }
+    #rules-overlay ul { color: #e0e0e0; font-size: 15px; line-height: 2; list-style: none; text-align: center; }
+    #rules-overlay ul li::before { content: '🎣 '; }
+    #close-rules {
+      margin-top: 10px;
+      background: #FFD700;
+      color: #1a1a1a;
+      border: none;
+      border-radius: 30px;
+      padding: 10px 30px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      letter-spacing: 2px;
+    }
+    #msg {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 48px;
+      font-weight: bold;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+      text-shadow: 0 0 20px currentColor;
+    }
+    #msg.show { opacity: 1; }
+    #cast-hint {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.45);
+      font-size: 13px;
+      pointer-events: none;
+      letter-spacing: 1px;
+    }
+    #back-btn {
+      display: inline-block;
+      margin-bottom: 10px;
+      background: rgba(0,0,0,0.5);
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      color: #aac4e0;
+      font-size: 13px;
+      font-weight: bold;
+      padding: 6px 12px;
+      cursor: pointer;
+      text-decoration: none;
+      align-self: flex-start;
+    }
+  </style>
+</head>
+<body>
+<div style="display:flex;flex-direction:column;align-items:flex-start;width:min(800px,100vw)">
+  <a id="back-btn" href="index.html">← MENÚ</a>
+  <div id="game-wrap" style="width:100%">
+  <canvas id="gc" width="800" height="500"></canvas>
+  <div id="hud">
+    <div class="hud-box">PUNTOS: <span id="score-val">0</span></div>
+    <div class="hud-box">MEJOR: <span id="best-val">0</span></div>
+    <div class="hud-box">VIDAS: <span id="lives-val">❤️❤️❤️</span></div>
+  </div>
+  <div id="equation-box">? + ? = ?</div>
+  <button id="rules-btn" onclick="toggleRules()">?</button>
+  <div id="rules-overlay">
+    <h2>📖 CÓMO JUGAR</h2>
+    <ul>
+      <li>SE MUESTRA UNA ECUACIÓN ARRIBA</li>
+      <li>LOS PECES NADAN CON NÚMEROS</li>
+      <li>HAZ CLIC O PRESIONA ESPACIO PARA LANZAR EL ANZUELO</li>
+      <li>ATRAPA EL PEZ CON LA RESPUESTA CORRECTA</li>
+      <li>PEZ CORRECTO = PUNTOS, PEZ INCORRECTO = PIERDE VIDA</li>
+      <li>TIENES 3 VIDAS — ¡A PESCAR!</li>
+    </ul>
+    <button id="close-rules" onclick="toggleRules()">✕ CERRAR</button>
+  </div>
+  <div id="msg"></div>
+  <div id="cast-hint">CLIC O ESPACIO → LANZAR ANZUELO</div>
+</div><!-- game-wrap -->
+</div><!-- outer -->
+
+<script>
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+const W = 800, H = 500;
+
+// ── State ──────────────────────────────────────────────────────────────────
+let score = 0, lives = 3, best = +localStorage.getItem('fishing_best') || 0;
+let question = null;      // { a, b, answer }
+let hook = null;          // { x, y, vy, state:'idle'|'falling'|'rising'|'caught', caughtFish }
+let fishList = [];
+let particles = [];
+let gameOver = false;
+let msgTimeout = null;
+let bobTimer = 0;
+let hookX = 340;          // rod tip X (follows cursor or stays center)
+let cursorX = 340;
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const scoreEl = document.getElementById('score-val');
+const bestEl  = document.getElementById('best-val');
+const livesEl = document.getElementById('lives-val');
+const eqEl    = document.getElementById('equation-box');
+const msgEl   = document.getElementById('msg');
+
+// ── Audio ──────────────────────────────────────────────────────────────────
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+function beep(freq, dur, type='sine', vol=0.3) {
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.connect(g); g.connect(AC.destination);
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + dur);
+  o.start(); o.stop(AC.currentTime + dur);
+}
+function playCorrect() { [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.18),i*80)); }
+function playWrong()   { beep(200,0.3,'sawtooth',0.25); }
+function playSplash()  { beep(300,0.15,'triangle',0.2); setTimeout(()=>beep(200,0.15,'triangle',0.15),100); }
+function playGameOver(){ [400,350,300,250].forEach((f,i)=>setTimeout(()=>beep(f,0.25,'sawtooth'),i*120)); }
+
+// ── Question ───────────────────────────────────────────────────────────────
+function newQuestion() {
+  const a = 1 + Math.floor(Math.random()*9);
+  const b = 1 + Math.floor(Math.random()*9);
+  question = { a, b, answer: a + b };
+  eqEl.textContent = `${a} + ${b} = ?`;
+  spawnFish();
+}
+
+// ── Fish ───────────────────────────────────────────────────────────────────
+const FISH_COLORS = [
+  ['#FF6B6B','#cc4444'],
+  ['#FFA500','#cc7700'],
+  ['#FFD700','#aa9000'],
+  ['#7ECBA1','#3a8a60'],
+  ['#64B5F6','#1976d2'],
+  ['#CE93D8','#8e24aa'],
+  ['#80DEEA','#00838f'],
+  ['#FFAB91','#bf5a2f'],
+];
+
+function spawnFish() {
+  fishList = [];
+  // answers pool: correct + 3 wrong (unique, 2–18)
+  const correct = question.answer;
+  const pool = new Set([correct]);
+  while (pool.size < 5) {
+    const v = 2 + Math.floor(Math.random()*17);
+    if (v !== correct) pool.add(v);
+  }
+  const answers = [...pool].sort(() => Math.random()-0.5);
+
+  answers.forEach((num, i) => {
+    const row = Math.floor(i / 3); // 0 or 1
+    const col = i % 3;
+    const colorPair = FISH_COLORS[i % FISH_COLORS.length];
+    const goRight = Math.random() < 0.5;
+    fishList.push({
+      num,
+      x: goRight ? -100 - Math.random()*200 : W + 100 + Math.random()*200,
+      y: 280 + row * 90 + Math.random()*20 - 10,
+      speed: (1.2 + Math.random()*1.2) * (goRight ? 1 : -1),
+      color: colorPair[0],
+      darkColor: colorPair[1],
+      scale: 0.85 + Math.random()*0.3,
+      wobble: Math.random()*Math.PI*2,
+      hooked: false,
+      splashing: false,
+      splashTimer: 0,
+    });
+  });
+}
+
+// ── Hook ───────────────────────────────────────────────────────────────────
+function castHook() {
+  if (gameOver) return;
+  if (hook && hook.state !== 'idle') return;
+  AC.resume();
+  beep(600, 0.1);
+  hook = {
+    x: hookX,
+    y: 120,         // rod tip height
+    state: 'falling',
+    caughtFish: null,
+  };
+}
+
+// ── Particles ──────────────────────────────────────────────────────────────
+function spawnParticles(x, y, color, count=12) {
+  for (let i=0; i<count; i++) {
+    const angle = Math.random()*Math.PI*2;
+    const spd   = 2 + Math.random()*4;
+    particles.push({ x, y,
+      vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd - 2,
+      life: 1, decay: 0.03 + Math.random()*0.03,
+      r: 4 + Math.random()*5, color });
+  }
+}
+
+// ── Message flash ──────────────────────────────────────────────────────────
+function showMsg(text, color) {
+  msgEl.textContent = text;
+  msgEl.style.color = color;
+  msgEl.classList.add('show');
+  clearTimeout(msgTimeout);
+  msgTimeout = setTimeout(() => msgEl.classList.remove('show'), 900);
+}
+
+// ── Update ─────────────────────────────────────────────────────────────────
+function update() {
+  bobTimer++;
+
+  // Move fish
+  for (const f of fishList) {
+    if (f.hooked || f.splashing) continue;
+    f.x += f.speed;
+    f.wobble += 0.06;
+    // wrap around
+    if (f.speed > 0 && f.x > W + 150) f.x = -120;
+    if (f.speed < 0 && f.x < -150)    f.x = W + 120;
+  }
+
+  // Hook physics
+  if (hook) {
+    if (hook.state === 'falling') {
+      hook.y += 7;
+
+      // Check collision with fish
+      for (const f of fishList) {
+        if (f.hooked || f.splashing) continue;
+        const fw = 70 * f.scale, fh = 36 * f.scale;
+        if (hook.x > f.x - fw/2 && hook.x < f.x + fw/2 &&
+            hook.y > f.y - fh/2 && hook.y < f.y + fh/2) {
+          f.hooked = true;
+          hook.state = 'caught';
+          hook.caughtFish = f;
+          break;
+        }
+      }
+
+      // Hit water floor → miss
+      if (hook.y > H - 60) {
+        playSplash();
+        spawnParticles(hook.x, H - 60, '#64B5F6', 8);
+        hook.state = 'rising';
+      }
+    } else if (hook.state === 'rising') {
+      hook.y -= 8; // constant speed upward, no gravity
+      if (hook.y < 110) {
+        hook = null;
+      }
+    } else if (hook.state === 'caught') {
+      const f = hook.caughtFish;
+      f.x = hook.x;
+      f.y = hook.y + 30;
+      hook.y -= 8; // constant speed upward
+      if (hook.y < 110) {
+        // Evaluate
+        if (f.num === question.answer) {
+          score += 10;
+          if (score > best) { best = score; localStorage.setItem('fishing_best', best); }
+          playCorrect();
+          showMsg('¡CORRECTO! +10', '#FFD700');
+          spawnParticles(f.x, f.y, f.color, 16);
+        } else {
+          lives--;
+          playWrong();
+          showMsg('¡INCORRECTO!', '#FF6B6B');
+          spawnParticles(f.x, f.y, '#FF6B6B', 10);
+          if (lives <= 0) {
+            endGame();
+            hook = null;
+            updateHUD();
+            return;
+          }
+        }
+        hook = null;
+        updateHUD();
+        newQuestion();
+      }
+    }
+  }
+
+  // Particles
+  for (const p of particles) {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= p.decay;
+  }
+  particles = particles.filter(p => p.life > 0);
+
+  updateHUD();
+}
+
+function updateHUD() {
+  scoreEl.textContent = score;
+  bestEl.textContent  = best;
+  livesEl.textContent = '❤️'.repeat(Math.max(0, lives));
+}
+
+function endGame() {
+  gameOver = true;
+  playGameOver();
+}
+
+// ── Draw ───────────────────────────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Sky gradient
+  const sky = ctx.createLinearGradient(0, 0, 0, H*0.45);
+  sky.addColorStop(0, '#0a0a1a');
+  sky.addColorStop(1, '#1a3a6a');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H*0.45);
+
+  // Water gradient
+  const water = ctx.createLinearGradient(0, H*0.42, 0, H);
+  water.addColorStop(0, '#0a4a8a');
+  water.addColorStop(1, '#012244');
+  ctx.fillStyle = water;
+  ctx.fillRect(0, H*0.42, W, H);
+
+  // Water surface shimmer
+  ctx.save();
+  for (let i=0; i<8; i++) {
+    const wx = (bobTimer*1.5 + i*120) % (W+80) - 40;
+    ctx.strokeStyle = `rgba(100,180,255,${0.1+i%3*0.07})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(wx, H*0.43);
+    ctx.bezierCurveTo(wx+30, H*0.43-6, wx+60, H*0.43+6, wx+90, H*0.43);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Underwater bubbles
+  ctx.save();
+  for (let i=0; i<6; i++) {
+    const bx = ((i*137 + bobTimer*0.3) % W);
+    const by = H*0.55 + Math.sin(bobTimer*0.05 + i)*30;
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = '#90caf9';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(bx, by, 4+i%3*2, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // Fishing rod + person on dock
+  drawFisher();
+
+  // Line from rod tip to hook
+  if (hook) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4,3]);
+    ctx.beginPath();
+    ctx.moveTo(hookX, 120);
+    ctx.lineTo(hook.x, hook.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // Hook symbol
+    ctx.save();
+    ctx.strokeStyle = '#c0c0c0';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(hook.x, hook.y + 8, 8, 0, Math.PI*1.3);
+    ctx.stroke();
+    ctx.restore();
+  } else {
+    // Idle dangling line
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4,3]);
+    ctx.beginPath();
+    ctx.moveTo(hookX, 120);
+    ctx.lineTo(hookX, 140 + Math.sin(bobTimer*0.05)*5);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // Fish
+  for (const f of fishList) {
+    if (!f.hooked) drawFish(f);
+  }
+  // Draw hooked fish on top
+  for (const f of fishList) {
+    if (f.hooked) drawFish(f);
+  }
+
+  // Particles
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Game over overlay
+  if (gameOver) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 52px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('¡JUEGO TERMINADO!', W/2, H/2 - 40);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 28px Arial';
+    ctx.fillText(`PUNTUACIÓN FINAL: ${score}`, W/2, H/2 + 10);
+    ctx.fillStyle = '#aac4e0';
+    ctx.font = '20px Arial';
+    ctx.fillText('HAZ CLIC PARA VOLVER A JUGAR', W/2, H/2 + 55);
+    ctx.restore();
+  }
+}
+
+function drawFisher() {
+  const rx = hookX;   // rod tip X
+
+  // Dock planks
+  ctx.save();
+  ctx.fillStyle = '#6b3f1e';
+  ctx.fillRect(0, 158, 200, 22);
+  ctx.fillStyle = '#7a4a22';
+  for (let i=0; i<7; i++) ctx.fillRect(i*32, 158, 28, 22);
+  ctx.strokeStyle = '#a0622a';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0,158); ctx.lineTo(200,158); ctx.stroke();
+  ctx.restore();
+
+  // Fishing rod (from hand to tip)
+  ctx.save();
+  ctx.strokeStyle = '#8B6914';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(76, 90);   // right hand of 2× girl
+  ctx.quadraticCurveTo(120, 65, rx, 120);
+  ctx.stroke();
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.arc(rx, 120, 3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // Girl character — reuse exact pixel art from math-jump, scaled 2×
+  ctx.save();
+  ctx.translate(10, 62);
+  ctx.scale(2, 2);
+  const px = 0, py = 0;
+
+  // Sneakers
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(px+2,  py+39, 13, 5);
+  ctx.fillRect(px+19, py+39, 13, 5);
+  ctx.fillStyle = '#E8E8E8';
+  ctx.fillRect(px+2,  py+42, 13, 2);
+  ctx.fillRect(px+19, py+42, 13, 2);
+  ctx.fillStyle = '#2a2a2a';
+  ctx.fillRect(px+3,  py+40, 5, 2);
+  ctx.fillRect(px+20, py+40, 5, 2);
+
+  // Legs
+  ctx.fillStyle = '#F0C8A0';
+  ctx.fillRect(px+5,  py+35, 9, 6);
+  ctx.fillRect(px+20, py+35, 9, 6);
+
+  // Dark navy pleated skirt
+  ctx.fillStyle = '#111827'; ctx.fillRect(px, py+28, 36, 12);
+  ctx.fillStyle = '#1a2436';
+  for (let sx = px+4; sx < px+34; sx += 5) ctx.fillRect(sx, py+28, 2, 12);
+  ctx.fillStyle = '#1f2d45'; ctx.fillRect(px, py+28, 36, 3);
+
+  // White polo body
+  ctx.fillStyle = '#F5F5F5'; ctx.fillRect(px+4, py+19, 26, 11);
+  ctx.fillStyle = '#E0E0E0';
+  ctx.fillRect(px+4,  py+19, 3, 11);
+  ctx.fillRect(px+27, py+19, 3, 11);
+
+  // Navy collar with yellow trim
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(px+11, py+17, 7, 6);
+  ctx.fillRect(px+18, py+17, 7, 6);
+  ctx.fillStyle = '#F59E0B';
+  ctx.fillRect(px+11, py+17, 7, 2);
+  ctx.fillRect(px+18, py+17, 7, 2);
+  ctx.fillStyle = '#F5F5F5'; ctx.fillRect(px+16, py+18, 4, 5);
+
+  // Two buttons
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(px+17, py+22, 2, 2);
+  ctx.fillRect(px+17, py+26, 2, 2);
+
+  // Chest pocket + badge
+  ctx.fillStyle = '#E8E8E8'; ctx.fillRect(px+7, py+22, 7, 6);
+  ctx.strokeStyle = '#CCC'; ctx.lineWidth = 1; ctx.strokeRect(px+7, py+22, 7, 6);
+  ctx.fillStyle = '#0f172a'; ctx.fillRect(px+8, py+23, 5, 4);
+  ctx.fillStyle = '#F59E0B'; ctx.fillRect(px+9, py+24, 3, 2);
+
+  // Sleeve trim
+  ctx.fillStyle = '#F59E0B';
+  ctx.fillRect(px+4,  py+27, 3, 2);
+  ctx.fillRect(px+27, py+27, 3, 2);
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(px+4,  py+29, 3, 1);
+  ctx.fillRect(px+27, py+29, 3, 1);
+
+  // Arm raised holding rod
+  ctx.fillStyle = '#F0C8A0';
+  ctx.fillRect(px+27, py+19, 5, 14); // right arm extended up
+  ctx.fillRect(px+30, py+12, 5, 10);
+
+  // Neck
+  ctx.fillStyle = '#F0C8A0'; ctx.fillRect(px+14, py+15, 8, 5);
+
+  // Hair pulled back
+  ctx.fillStyle = '#3D2008';
+  ctx.fillRect(px+6,  py,    24, 7);
+  ctx.fillRect(px+4,  py+4,  5,  10);
+  ctx.fillRect(px+27, py+4,  5,  10);
+  ctx.fillRect(px+29, py+8,  6,  8);
+  ctx.fillStyle = '#2a1505'; ctx.fillRect(px+30, py+9, 4, 6);
+
+  // Face
+  ctx.fillStyle = '#F0C8A0'; ctx.fillRect(px+7, py+5, 22, 14);
+  ctx.fillStyle = 'rgba(240,140,140,0.45)';
+  ctx.fillRect(px+7,  py+13, 5, 4);
+  ctx.fillRect(px+24, py+13, 5, 4);
+
+  // White headband
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(px+5, py+4, 26, 4);
+  ctx.fillStyle = '#E5E5E5';
+  ctx.fillRect(px+5, py+4, 26, 1);
+  ctx.fillRect(px+5, py+7, 26, 1);
+
+  // Eyes
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(px+10, py+9, 5, 5);
+  ctx.fillRect(px+21, py+9, 5, 5);
+  ctx.fillStyle = '#5C3317';
+  ctx.fillRect(px+11, py+10, 3, 3);
+  ctx.fillRect(px+22, py+10, 3, 3);
+  ctx.fillStyle = 'white';
+  ctx.fillRect(px+12, py+10, 1, 1);
+  ctx.fillRect(px+23, py+10, 1, 1);
+
+  // Eyebrows
+  ctx.fillStyle = '#3D2008';
+  ctx.fillRect(px+10, py+7, 5, 2);
+  ctx.fillRect(px+21, py+7, 5, 2);
+
+  // Smile
+  ctx.fillStyle = '#C27B5A';
+  ctx.fillRect(px+11, py+15, 14, 2);
+  ctx.fillRect(px+10, py+13,  3,  3);
+  ctx.fillRect(px+23, py+13,  3,  3);
+  ctx.fillStyle = 'white'; ctx.fillRect(px+12, py+15, 12, 2);
+
+  ctx.restore();
+}
+
+function drawFish(f) {
+  ctx.save();
+  ctx.translate(f.x, f.y + Math.sin(f.wobble)*4);
+  if (f.speed < 0) ctx.scale(-1, 1);
+
+  const s = f.scale;
+
+  // Tail
+  ctx.fillStyle = f.darkColor;
+  ctx.beginPath();
+  ctx.moveTo(-35*s, 0);
+  ctx.lineTo(-55*s, -18*s);
+  ctx.lineTo(-55*s,  18*s);
+  ctx.closePath();
+  ctx.fill();
+
+  // Body
+  const grad = ctx.createRadialGradient(5*s, -5*s, 2, 0, 0, 38*s);
+  grad.addColorStop(0, '#ffffff44');
+  grad.addColorStop(0.4, f.color);
+  grad.addColorStop(1, f.darkColor);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 38*s, 20*s, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Fin on top
+  ctx.fillStyle = f.darkColor;
+  ctx.beginPath();
+  ctx.moveTo(-5*s, -20*s);
+  ctx.lineTo(8*s,  -32*s);
+  ctx.lineTo(20*s, -20*s);
+  ctx.closePath();
+  ctx.fill();
+
+  // Eye
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(22*s, -5*s, 6*s, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#222';
+  ctx.beginPath();
+  ctx.arc(23*s, -5*s, 3*s, 0, Math.PI*2);
+  ctx.fill();
+
+  // Mouth
+  ctx.strokeStyle = '#fff8';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(34*s, -2*s, 5*s, Math.PI*0.2, Math.PI*0.8);
+  ctx.stroke();
+
+  // Number label — always readable regardless of fish direction
+  ctx.save();
+  if (f.speed < 0) ctx.scale(-1, 1); // undo the fish flip for text
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.round(18*s)}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 4;
+  ctx.fillText(f.num, 0, 2);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  ctx.restore();
+}
+
+// ── Game loop ──────────────────────────────────────────────────────────────
+function loop() {
+  if (!gameOver) update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ── Input ──────────────────────────────────────────────────────────────────
+const wrap = document.getElementById('game-wrap');
+
+wrap.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  cursorX = (e.clientX - r.left) * (W / r.width);
+  hookX = Math.max(60, Math.min(W - 60, cursorX));
+});
+
+canvas.addEventListener('click', e => {
+  AC.resume();
+  if (gameOver) { restartGame(); return; }
+  const r = canvas.getBoundingClientRect();
+  cursorX = (e.clientX - r.left) * (W / r.width);
+  hookX = Math.max(60, Math.min(W - 60, cursorX));
+  castHook();
+});
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); AC.resume(); if (gameOver) restartGame(); else castHook(); }
+  if (e.code === 'Escape') toggleRules();
+});
+
+function restartGame() {
+  score = 0; lives = 3; gameOver = false;
+  hook = null; particles = [];
+  updateHUD();
+  newQuestion();
+}
+
+function toggleRules() {
+  document.getElementById('rules-overlay').classList.toggle('show');
+}
+
+// ── Start ──────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  updateHUD();
+  newQuestion();
+  loop();
+});
+</script>
+</body>
+</html>
