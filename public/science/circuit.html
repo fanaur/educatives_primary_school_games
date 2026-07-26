@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Circuito Eléctrico – MicaGames</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background:#0f0f1a;
+      min-height:100vh;
+      display:flex; flex-direction:column; align-items:center;
+      font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y:auto; overflow-x:hidden;
+      user-select:none;
+    }
+
+    canvas#bg { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+
+    #game {
+      position:relative; z-index:1;
+      display:flex; flex-direction:column;
+      align-items:center; gap:18px;
+      padding:18px 14px 40px;
+      width:100%; max-width:900px;
+    }
+
+    /* ── Top bar ── */
+    #topbar { display:flex; align-items:center; gap:14px; width:100%; }
+    .home-btn {
+      text-decoration:none;
+      background:rgba(255,255,255,0.08);
+      border:2px solid rgba(255,255,255,0.15);
+      border-radius:50%; width:44px; height:44px;
+      display:flex; align-items:center; justify-content:center; font-size:1.3rem;
+      transition:border-color .15s, background .15s;
+    }
+    .home-btn:hover { border-color:#FFD700; background:rgba(255,215,0,.1); }
+    .page-title {
+      color:#FFD700; font-size:20px;
+      text-shadow:0 0 20px rgba(255,215,0,.4), 2px 2px 0 #b8860b;
+      letter-spacing:1px;
+    }
+
+    /* ── HUD ── */
+    #hud { display:flex; gap:28px; align-items:center; flex-wrap:wrap; justify-content:center; }
+    .hud-box { text-align:center; }
+    .hud-label { color:#64748b; font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+    .hud-value { color:#FFD700; font-size:26px; font-weight:bold; text-shadow:0 0 14px rgba(255,215,0,.4); }
+
+    /* ── Hint ── */
+    #hint {
+      color:#64748b; font-size:13px; text-align:center; letter-spacing:.5px;
+      max-width:620px;
+    }
+
+    /* ── Circuit card ── */
+    #circuit-card {
+      width:100%;
+      background:rgba(255,255,255,.05);
+      border:2px solid rgba(255,255,255,.1);
+      border-radius:28px;
+      padding:26px 16px 22px;
+      display:flex; flex-direction:column;
+      align-items:center; gap:20px;
+      transition:border-color .3s, box-shadow .3s;
+      overflow-x:auto;
+    }
+    #circuit-card.success { border-color:#22c55e; box-shadow:0 0 40px rgba(34,197,94,.35); }
+    #circuit-card.fail    { border-color:#ef4444; box-shadow:0 0 40px rgba(239,68,68,.25); }
+
+    /* ── Circuit row ── */
+    #circuit-row {
+      display:flex; align-items:center; justify-content:center;
+      gap:6px; flex-wrap:nowrap; min-height:110px;
+      width:100%; padding:0 8px;
+    }
+
+    .end-wrap { display:flex; flex-direction:column; align-items:center; gap:6px; flex-shrink:0; }
+    .end-emoji {
+      font-size:3rem; line-height:1;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,.5));
+      transition: filter .3s, opacity .3s;
+    }
+    .end-label { font-size:9px; color:#94a3b8; letter-spacing:.5px; text-align:center; }
+
+    /* Battery pulses gently always */
+    @keyframes batteryPulse {
+      0%,100% { filter: drop-shadow(0 0 6px rgba(255,215,0,.4)); }
+      50%     { filter: drop-shadow(0 0 16px rgba(255,215,0,.8)); }
+    }
+    .end-emoji.battery { animation: batteryPulse 1.8s ease-in-out infinite; }
+
+    /* Output OFF state (dim) vs ON state (glow / spin) */
+    .end-emoji.output-off { opacity:.35; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)) grayscale(1); }
+    .end-emoji.output-on.lamp {
+      opacity:1;
+      filter: drop-shadow(0 0 26px rgba(255,230,80,1)) drop-shadow(0 0 46px rgba(255,215,0,.8));
+      animation: lampFlicker .6s ease-in-out infinite alternate;
+    }
+    @keyframes lampFlicker {
+      from { filter: drop-shadow(0 0 22px rgba(255,230,80,1)) drop-shadow(0 0 40px rgba(255,215,0,.7)); }
+      to   { filter: drop-shadow(0 0 30px rgba(255,240,120,1)) drop-shadow(0 0 54px rgba(255,215,0,.9)); }
+    }
+    .end-emoji.output-on.motor {
+      opacity:1;
+      filter: drop-shadow(0 0 18px rgba(34,197,94,.8));
+      animation: motorSpin .5s linear infinite;
+    }
+    @keyframes motorSpin { from{ transform:rotate(0deg);} to{ transform:rotate(360deg);} }
+
+    /* Track dashes between pieces */
+    .dash-track {
+      width:20px; height:3px;
+      background: repeating-linear-gradient(to right, rgba(255,255,255,.35) 0 6px, transparent 6px 12px);
+      align-self:center;
+      flex-shrink:0;
+    }
+
+    /* ── Slots ── */
+    .slot-wrap { display:flex; flex-direction:column; align-items:center; gap:6px; flex-shrink:0; }
+    .slot {
+      width:64px; height:64px;
+      border:3px dashed rgba(255,255,255,0.22);
+      border-radius:12px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:1.8rem; font-weight:bold;
+      background: rgba(255,255,255,0.03);
+      transition:background .15s, border-color .15s, transform .1s;
+    }
+    .slot.drag-over {
+      border-color:#FFD700; border-style:solid;
+      background: rgba(255,215,0,0.14); transform:scale(1.09);
+    }
+    .slot.filled { border-style:solid; border-color:rgba(255,255,255,0.28); background: rgba(255,255,255,0.07); }
+    .slot-label { font-size:9px; color:#94a3b8; letter-spacing:.5px; text-align:center; }
+
+    @keyframes shake {
+      0%,100%{ transform:translateX(0); }
+      20%    { transform:translateX(-6px); }
+      40%    { transform:translateX(6px); }
+      60%    { transform:translateX(-4px); }
+      80%    { transform:translateX(4px); }
+    }
+    .slot.shake { animation: shake 0.4s ease; }
+
+    /* ── Message ── */
+    #message {
+      font-size:16px; font-weight:bold; letter-spacing:1px;
+      min-height:26px; text-align:center; color:#e2e8f0;
+    }
+    #message.success { color:#22c55e; text-shadow:0 0 12px rgba(34,197,94,.5); }
+    #message.fail    { color:#ef4444; text-shadow:0 0 12px rgba(239,68,68,.5); }
+
+    /* ── Next button ── */
+    #next-btn {
+      display:none; padding:13px 44px;
+      font-size:1.15rem; font-family:inherit; font-weight:bold; color:#1a1a1a;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      border:none; border-radius:50px; cursor:pointer;
+      box-shadow:0 5px 22px rgba(255,215,0,.4); transition:transform .12s;
+    }
+    #next-btn:hover { transform:scale(1.07); }
+
+    /* ── Tiles pool ── */
+    #tiles {
+      display:flex; gap:14px; flex-wrap:wrap; justify-content:center;
+      max-width:620px;
+    }
+
+    .tile {
+      width:76px; height:76px;
+      background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+      border: 2px solid #60a5fa;
+      color:#ffffff; border-radius:14px;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      font-size:1.9rem; font-weight:bold;
+      cursor:grab; gap:2px;
+      box-shadow: 0 4px 18px rgba(59,130,246,0.45);
+      transition: transform 0.12s, border-color 0.12s, opacity 0.15s;
+    }
+    .tile:hover    { transform: scale(1.08) translateY(-5px); border-color:#93c5fd; box-shadow:0 8px 24px rgba(59,130,246,.6); }
+    .tile.dragging { opacity:.3; cursor:grabbing; }
+    .tile.used     { visibility:hidden; pointer-events:none; }
+    .tile-sub { font-size:8px; letter-spacing:.5px; color:#dbeafe; }
+
+    .confetti-layer { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:50; }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas id="confetti-canvas" class="confetti-layer"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html">🏠</a>
+      <span class="page-title">⚡ CIRCUITO ELÉCTRICO</span>
+    </div>
+
+    <div id="hud">
+      <div class="hud-box"><div class="hud-label">Puntos</div><div class="hud-value" id="score">0</div></div>
+      <div class="hud-box"><div class="hud-label">Racha</div><div class="hud-value" id="streak">0</div></div>
+      <div class="hud-box"><div class="hud-label">Nivel</div><div class="hud-value" id="level-num">1</div></div>
+    </div>
+
+    <div id="hint">🔌 ¡ARRASTRA LAS PIEZAS PARA CERRAR EL CIRCUITO! ALGUNAS PIEZAS SE VEN BIEN PERO ESTÁN ROTAS — ¡DESCÚBRELAS PROBANDO!</div>
+
+    <div id="circuit-card">
+      <div id="circuit-row"></div>
+      <div id="message">¡ARRASTRA LAS PIEZAS PARA CERRAR EL CIRCUITO!</div>
+    </div>
+
+    <button id="next-btn" onclick="nextRound()">SIGUIENTE ➡️</button>
+
+    <div id="tiles"></div>
+  </div>
+
+  <script>
+    /* ── Starfield / floating electricity symbols ── */
+    const bgC=document.getElementById('bg'),bgX=bgC.getContext('2d');
+    function rbg(){bgC.width=innerWidth;bgC.height=innerHeight;}
+    rbg();window.addEventListener('resize',rbg);
+    const stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*1.5,sp:.00008+Math.random()*.00015,tw:Math.random()*Math.PI*2}));
+    const bgF=['⚡','🔌','💡','⚙️'].map(c=>({t:c,x:Math.random(),y:Math.random(),sp:.0001+Math.random()*.0002,sz:14+Math.random()*16,a:.04+Math.random()*.07}));
+    function drawBg(){const W=bgC.width,H=bgC.height;bgX.fillStyle='#0f0f1a';bgX.fillRect(0,0,W,H);for(const s of stars){s.tw+=s.sp*60;bgX.globalAlpha=.4+Math.sin(s.tw)*.4;bgX.fillStyle='#fff';bgX.beginPath();bgX.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);bgX.fill();}for(const f of bgF){f.y-=f.sp;if(f.y<-.05)f.y=1.05;bgX.globalAlpha=f.a;bgX.font=`${f.sz}px Arial`;bgX.textAlign='center';bgX.fillStyle='#FFD700';bgX.fillText(f.t,f.x*W,f.y*H);}bgX.globalAlpha=1;requestAnimationFrame(drawBg);}
+    drawBg();
+
+    /* ── Confetti ── */
+    const cfC=document.getElementById('confetti-canvas'),cfX=cfC.getContext('2d');
+    cfC.width=innerWidth;cfC.height=innerHeight;
+    window.addEventListener('resize',()=>{cfC.width=innerWidth;cfC.height=innerHeight;});
+    let cp=[];
+    function burst(){const cols=['#FFD700','#22c55e','#3b82f6','#ec4899','#f97316','#8b5cf6'];for(let i=0;i<80;i++)cp.push({x:innerWidth/2+(Math.random()-.5)*300,y:innerHeight*.38,vx:(Math.random()-.5)*10,vy:-7-Math.random()*9,sz:6+Math.random()*8,col:cols[~~(Math.random()*cols.length)],rot:Math.random()*360,rv:(Math.random()-.5)*14,life:1});requestAnimationFrame(animCf);}
+    function animCf(){cfX.clearRect(0,0,cfC.width,cfC.height);cp=cp.filter(p=>p.life>.02);for(const p of cp){p.vy+=.38;p.x+=p.vx;p.y+=p.vy;p.rot+=p.rv;p.life-=.018;cfX.save();cfX.globalAlpha=p.life;cfX.translate(p.x,p.y);cfX.rotate(p.rot*Math.PI/180);cfX.fillStyle=p.col;cfX.fillRect(-p.sz/2,-p.sz/2,p.sz,p.sz*.55);cfX.restore();}if(cp.length>0)requestAnimationFrame(animCf);else cfX.clearRect(0,0,cfC.width,cfC.height);}
+
+    /* ──────────────────────────────────────────
+       PIECE TYPES
+       WIRE  → conducts (correct piece)
+       BROKEN_WIRE → looks like a wire but has a tiny gap (decoy)
+       OPEN_SWITCH → looks like a switch but is left open (decoy)
+    ────────────────────────────────────────── */
+    const PIECE_TYPES = {
+      wire:        { symbol:'➖', sub:'CABLE',    conducts:true  },
+      brokenWire:  { symbol:'╌',  sub:'CABLE',    conducts:false },
+      openSwitch:  { symbol:'⏻',  sub:'INTERR.',  conducts:false },
+    };
+
+    let score=0, streak=0, level=1, roundWins=0;
+    let numSlots=3;
+    let slots=[];        // [{correct:bool, filled:bool, pieceKey:string|null}]
+    let pool=[];         // tile pool for this round: [{key, type}]
+    let outputType='lamp'; // 'lamp' or 'motor'
+    let locked=false;
+    let dragTile=null;
+
+    function levelForWins(w){ return 1 + Math.floor(w/5); }
+    function slotsForLevel(lv){ return Math.min(3 + (lv-1), 6); }
+
+    /* ── New round ── */
+    function newRound(){
+      locked=false;
+      level = levelForWins(roundWins);
+      numSlots = slotsForLevel(level);
+      outputType = Math.random()<0.5 ? 'lamp' : 'motor';
+
+      /* Build slots: exactly numSlots slots, each needs a correct WIRE.
+         We generate a pool with numSlots correct wires + a couple of decoys
+         so the player must figure out which tiles actually work. */
+      slots = Array.from({length:numSlots}, ()=>({filled:false, pieceKey:null}));
+
+      const poolItems=[];
+      for(let i=0;i<numSlots;i++){
+        poolItems.push({key:'wire'+i, type:'wire'});
+      }
+      const decoyCount = Math.min(2 + Math.floor(level/2), numSlots);
+      const decoyTypes=['brokenWire','openSwitch'];
+      for(let i=0;i<decoyCount;i++){
+        const t = decoyTypes[i % decoyTypes.length];
+        poolItems.push({key:t+i, type:t});
+      }
+      pool = poolItems.sort(()=>Math.random()-.5);
+
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('circuit-card').classList.remove('success','fail');
+      document.getElementById('level-num').textContent=level;
+
+      setMsg('¡ARRASTRA LAS PIEZAS PARA CERRAR EL CIRCUITO!','');
+      renderCircuit();
+      renderTiles();
+    }
+
+    /* ── Render the circuit row: battery + slots + dashes + output ── */
+    function renderCircuit(){
+      const row=document.getElementById('circuit-row');
+      row.innerHTML='';
+
+      /* Battery */
+      const battWrap=el('div','end-wrap');
+      const battEmoji=el('div','end-emoji battery','🔋');
+      battWrap.appendChild(battEmoji);
+      battWrap.appendChild(el('div','end-label','FUENTE'));
+      row.appendChild(battWrap);
+
+      row.appendChild(el('div','dash-track'));
+
+      slots.forEach((s,i)=>{
+        const wrap=el('div','slot-wrap');
+        const slotEl=el('div', 'slot'+(s.filled?' filled':''));
+        slotEl.dataset.idx=String(i);
+        if(s.filled){
+          const type=PIECE_TYPES[s.pieceKey.replace(/\d+$/,'')] || PIECE_TYPES[typeFromKey(s.pieceKey)];
+          slotEl.textContent = type.symbol;
+        }
+        slotEl.addEventListener('dragover', e=>{ e.preventDefault(); if(!locked) slotEl.classList.add('drag-over'); });
+        slotEl.addEventListener('dragleave', ()=>slotEl.classList.remove('drag-over'));
+        slotEl.addEventListener('drop', e=>onDrop(e, slotEl, i));
+        wrap.appendChild(slotEl);
+        wrap.appendChild(el('div','slot-label',`#${i+1}`));
+        row.appendChild(wrap);
+        if(i<slots.length-1) row.appendChild(el('div','dash-track'));
+      });
+
+      row.appendChild(el('div','dash-track'));
+
+      /* Output */
+      const outWrap=el('div','end-wrap');
+      const isOn = locked; // only "on" once circuit is fully validated correct
+      const outEmoji=el('div', `end-emoji ${outputType} ${isOn?'output-on':'output-off'}`, outputType==='lamp'?'💡':'⚙️');
+      outEmoji.id='output-emoji';
+      outWrap.appendChild(outEmoji);
+      outWrap.appendChild(el('div','end-label', outputType==='lamp' ? 'LÁMPARA' : 'MOTOR'));
+      row.appendChild(outWrap);
+    }
+
+    function typeFromKey(key){
+      if(key.startsWith('brokenWire')) return 'brokenWire';
+      if(key.startsWith('openSwitch')) return 'openSwitch';
+      return 'wire';
+    }
+
+    /* ── Render tile pool ── */
+    function renderTiles(){
+      const tilesEl=document.getElementById('tiles');
+      tilesEl.innerHTML='';
+      pool.forEach((item)=>{
+        const type=PIECE_TYPES[typeFromKey(item.key)];
+        const tile=el('div','tile');
+        tile.dataset.key=item.key;
+        tile.draggable=true;
+        const sym=el('div','', type.symbol);
+        const sub=el('div','tile-sub', type.sub);
+        tile.appendChild(sym);
+        tile.appendChild(sub);
+        tile.addEventListener('dragstart', e=>{
+          if(locked) { e.preventDefault(); return; }
+          dragTile=tile;
+          tile.classList.add('dragging');
+          e.dataTransfer.effectAllowed='move';
+        });
+        tile.addEventListener('dragend', ()=>tile.classList.remove('dragging'));
+        tilesEl.appendChild(tile);
+      });
+    }
+
+    /* ── Drop handler ── */
+    function onDrop(e, slotEl, idx){
+      e.preventDefault();
+      slotEl.classList.remove('drag-over');
+      if(!dragTile || locked) return;
+
+      const key=dragTile.dataset.key;
+      const s=slots[idx];
+
+      /* If slot already filled, return previous piece to pool visibility */
+      if(s.filled){
+        const prevTile=document.querySelector(`.tile[data-key="${s.pieceKey}"]`);
+        if(prevTile) prevTile.classList.remove('used');
+      }
+
+      s.filled=true;
+      s.pieceKey=key;
+      dragTile.classList.add('used');
+      dragTile=null;
+
+      renderCircuit();
+
+      /* Auto-validate when all slots filled */
+      if(slots.every(x=>x.filled)){
+        setTimeout(validate, 300);
+      }
+    }
+
+    /* ── Validate circuit ── */
+    function validate(){
+      const allWire = slots.every(s => typeFromKey(s.pieceKey)==='wire');
+
+      if(allWire){
+        locked=true;
+        streak++;
+        roundWins++;
+        const bonus = streak>=3 ? 20 : 10;
+        score+=bonus;
+        document.getElementById('score').textContent=score;
+        document.getElementById('streak').textContent=streak;
+        document.getElementById('circuit-card').classList.add('success');
+
+        renderCircuit(); // now shows output ON
+
+        const outMsg = outputType==='lamp'
+          ? '✅ ¡CIRCUITO CERRADO! ¡SE ENCENDIÓ LA LÁMPARA!'
+          : '✅ ¡CIRCUITO CERRADO! ¡EL MOTOR EMPEZÓ A GIRAR!';
+        setMsg(`${outMsg} +${bonus} PTS${streak>=3?' 🔥 ¡RACHA!':''}`,'success');
+        burst();
+        document.getElementById('next-btn').style.display='inline-block';
+      } else {
+        streak=0;
+        document.getElementById('streak').textContent=streak;
+        document.getElementById('circuit-card').classList.add('fail');
+        setMsg('❌ ¡EL CIRCUITO SIGUE ABIERTO! INTÉNTALO DE NUEVO','fail');
+
+        document.querySelectorAll('.slot').forEach(sEl=>{
+          sEl.classList.add('shake');
+          sEl.addEventListener('animationend', ()=>sEl.classList.remove('shake'), {once:true});
+        });
+
+        setTimeout(()=>{
+          document.getElementById('circuit-card').classList.remove('fail');
+          /* Return all pieces to pool so player can retry from scratch */
+          slots.forEach(s=>{ s.filled=false; s.pieceKey=null; });
+          document.querySelectorAll('.tile.used').forEach(t=>t.classList.remove('used'));
+          renderCircuit();
+          setMsg('¡ARRASTRA LAS PIEZAS PARA CERRAR EL CIRCUITO!','');
+        }, 1100);
+      }
+    }
+
+    function nextRound(){ newRound(); }
+
+    function setMsg(t,c){ const e=document.getElementById('message'); e.textContent=t; e.className=c; }
+    function el(tag,cls,txt){ const e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
+
+    newRound();
+  </script>
+</body>
+</html>

@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Balanza en Equilibrio – MicaGames</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background:#0f0f1a;
+      min-height:100vh;
+      display:flex; flex-direction:column; align-items:center;
+      font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y:auto; overflow-x:hidden;
+      user-select:none;
+    }
+
+    canvas#bg { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+
+    #game {
+      position:relative; z-index:1;
+      display:flex; flex-direction:column;
+      align-items:center; gap:18px;
+      padding:18px 14px 40px;
+      width:100%; max-width:860px;
+    }
+
+    /* ── Top bar ── */
+    #topbar { display:flex; align-items:center; gap:14px; width:100%; }
+    .home-btn {
+      text-decoration:none;
+      background:rgba(255,255,255,0.08);
+      border:2px solid rgba(255,255,255,0.15);
+      border-radius:50%; width:44px; height:44px;
+      display:flex; align-items:center; justify-content:center; font-size:1.3rem;
+      transition:border-color .15s, background .15s;
+    }
+    .home-btn:hover { border-color:#FFD700; background:rgba(255,215,0,.1); }
+    .page-title {
+      color:#FFD700; font-size:20px;
+      text-shadow:0 0 20px rgba(255,215,0,.4), 2px 2px 0 #b8860b;
+      letter-spacing:1px;
+    }
+
+    /* ── HUD ── */
+    #hud { display:flex; gap:28px; align-items:center; flex-wrap:wrap; justify-content:center; }
+    .hud-box { text-align:center; }
+    .hud-label { color:#64748b; font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+    .hud-value { color:#FFD700; font-size:26px; font-weight:bold; text-shadow:0 0 14px rgba(255,215,0,.4); }
+
+    /* ── Hint ── */
+    #hint {
+      color:#64748b; font-size:13px; text-align:center; letter-spacing:.5px;
+      max-width:560px;
+    }
+
+    /* ── Scale card ── */
+    #scale-card {
+      width:100%;
+      background:rgba(255,255,255,.05);
+      border:2px solid rgba(255,255,255,.1);
+      border-radius:28px;
+      padding:30px 16px 22px;
+      display:flex; flex-direction:column;
+      align-items:center; gap:22px;
+      transition:border-color .3s, box-shadow .3s;
+    }
+    #scale-card.balanced { border-color:#22c55e; box-shadow:0 0 40px rgba(34,197,94,.3); }
+
+    /* ── Scale drawing ──
+       Geometry is sized so that even at max tilt (±13deg) the pans
+       (hanging from the beam ends) stay fully inside #scale-wrap —
+       verified with margin to spare, so nothing pokes past the card. */
+    #scale-wrap {
+      position:relative;
+      width:100%; max-width:520px;
+      height:240px;
+    }
+
+    #fulcrum {
+      position:absolute; left:50%; bottom:0; transform:translateX(-50%);
+      width:0; height:0;
+      border-left:34px solid transparent;
+      border-right:34px solid transparent;
+      border-bottom:55px solid #94a3b8;
+      filter:drop-shadow(0 4px 8px rgba(0,0,0,.4));
+    }
+    #post {
+      position:absolute; left:50%; bottom:55px; transform:translateX(-50%);
+      width:10px; height:110px;
+      background:#94a3b8;
+    }
+
+    #beam {
+      position:absolute; left:50%; bottom:165px; transform:translateX(-50%) rotate(0deg);
+      transform-origin:center center;
+      width:380px; height:8px;
+      background:linear-gradient(90deg,#cbd5e1,#94a3b8,#cbd5e1);
+      border-radius:4px;
+      transition: transform .5s cubic-bezier(.34,1.2,.4,1);
+      box-shadow:0 3px 6px rgba(0,0,0,.4);
+    }
+    #scale-card.balanced #beam {
+      background:linear-gradient(90deg,#4ade80,#22c55e,#4ade80);
+      box-shadow:0 0 18px rgba(34,197,94,.7);
+    }
+
+    .string {
+      position:absolute; top:8px; width:2px; height:55px;
+      background:rgba(255,255,255,.4);
+    }
+    .string.left { left:6px; }
+    .string.right { right:6px; }
+
+    .pan {
+      position:absolute; top:60px; width:110px; height:56px;
+      border:3px solid #cbd5e1; border-top:none;
+      border-radius:0 0 55px 55px;
+      background:rgba(255,255,255,.06);
+      display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:center;
+      gap:3px; padding:4px 6px;
+      transition:box-shadow .3s;
+    }
+    .pan.left { left:0; }
+    .pan.right { right:0; }
+    #scale-card.balanced .pan { border-color:#4ade80; box-shadow:0 0 14px rgba(34,197,94,.5); }
+
+    .weight-block {
+      background:linear-gradient(160deg,#64748b,#334155);
+      border:2px solid #1e293b;
+      border-radius:8px 8px 4px 4px;
+      color:#fff; font-weight:bold; font-size:13px;
+      display:flex; align-items:center; justify-content:center;
+      width:34px; height:30px;
+      box-shadow:0 2px 4px rgba(0,0,0,.4);
+      position:relative;
+    }
+    .weight-block::before {
+      content:''; position:absolute; top:-8px; left:50%; transform:translateX(-50%);
+      width:12px; height:8px; border:2px solid #1e293b; border-bottom:none;
+      border-radius:5px 5px 0 0; background:transparent;
+    }
+    .weight-block.target {
+      width:64px; height:56px; font-size:22px;
+      background:linear-gradient(160deg,#f59e0b,#b45309);
+      border-color:#78350f;
+    }
+    .weight-block.target::before {
+      width:20px; height:12px;
+    }
+
+    @keyframes blockPop {
+      from { transform:scale(0); opacity:0; }
+      to   { transform:scale(1); opacity:1; }
+    }
+    .weight-block.new { animation: blockPop .25s cubic-bezier(.175,.885,.32,1.275) both; }
+
+    /* ── Message ── */
+    #message {
+      font-size:16px; font-weight:bold; letter-spacing:1px;
+      min-height:26px; text-align:center; color:#e2e8f0;
+    }
+    #message.balanced { color:#22c55e; text-shadow:0 0 12px rgba(34,197,94,.5); }
+
+    /* ── Next button ── */
+    #next-btn {
+      display:none; padding:13px 44px;
+      font-size:1.15rem; font-family:inherit; font-weight:bold; color:#1a1a1a;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      border:none; border-radius:50px; cursor:pointer;
+      box-shadow:0 5px 22px rgba(255,215,0,.4); transition:transform .12s;
+    }
+    #next-btn:hover { transform:scale(1.07); }
+
+    /* ── Controls ── */
+    #controls {
+      display:flex; gap:12px; flex-wrap:wrap; justify-content:center; width:100%;
+    }
+
+    .ctrl-btn {
+      padding:14px 22px;
+      font-size:1rem; font-family:inherit; font-weight:bold; color:#fff;
+      border-radius:50px; cursor:pointer;
+      transition:transform .12s, background .12s, box-shadow .12s;
+      border:3px solid transparent;
+    }
+    .add-btn {
+      background:linear-gradient(90deg,#8b5cf6,#6d28d9);
+      box-shadow:0 5px 22px rgba(139,92,246,.4);
+    }
+    .add-btn:hover:not(:disabled) { transform:scale(1.06); }
+    .add-btn:disabled { opacity:.4; cursor:default; }
+
+    #remove-btn {
+      background:rgba(239,68,68,.15);
+      border-color:rgba(239,68,68,.4);
+      color:#f87171;
+    }
+    #remove-btn:hover:not(:disabled) { background:rgba(239,68,68,.28); transform:scale(1.05); }
+    #remove-btn:disabled { opacity:.3; cursor:default; }
+
+    .confetti-layer { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:50; }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas id="confetti-canvas" class="confetti-layer"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html">🏠</a>
+      <span class="page-title">⚖️ BALANZA EN EQUILIBRIO</span>
+    </div>
+
+    <div id="hud">
+      <div class="hud-box">
+        <div class="hud-label">Puntos</div>
+        <div class="hud-value" id="score">0</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">Racha</div>
+        <div class="hud-value" id="streak">0</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">Nivel</div>
+        <div class="hud-value" id="level">1</div>
+      </div>
+    </div>
+
+    <div id="hint">💡 ¡AGREGA PESAS AL LADO DERECHO PARA EQUILIBRAR LA BALANZA!</div>
+
+    <div id="scale-card">
+      <div id="scale-wrap">
+        <div id="beam">
+          <div class="string left"></div>
+          <div class="string right"></div>
+          <div class="pan left" id="pan-left"></div>
+          <div class="pan right" id="pan-right"></div>
+        </div>
+        <div id="post"></div>
+        <div id="fulcrum"></div>
+      </div>
+      <div id="message">¡AGREGA PESAS AL LADO DERECHO PARA EQUILIBRAR LA BALANZA!</div>
+    </div>
+
+    <button id="next-btn" onclick="nextQ()">SIGUIENTE ➡️</button>
+
+    <div id="controls">
+      <div id="weight-btns"></div>
+      <button id="remove-btn" class="ctrl-btn" onclick="removeWeight()" disabled>↩️ QUITAR ÚLTIMA</button>
+    </div>
+  </div>
+
+  <script>
+    /* ── Starfield ── */
+    const bgC=document.getElementById('bg'),bgX=bgC.getContext('2d');
+    function rbg(){bgC.width=innerWidth;bgC.height=innerHeight;}
+    rbg();window.addEventListener('resize',rbg);
+    const stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*1.5,sp:.00008+Math.random()*.00015,tw:Math.random()*Math.PI*2}));
+    const bgF=['⚖️','1','2','5','10'].map(c=>({t:c,x:Math.random(),y:Math.random(),sp:.0001+Math.random()*.0002,sz:14+Math.random()*16,a:.04+Math.random()*.07}));
+    function drawBg(){const W=bgC.width,H=bgC.height;bgX.fillStyle='#0f0f1a';bgX.fillRect(0,0,W,H);for(const s of stars){s.tw+=s.sp*60;bgX.globalAlpha=.4+Math.sin(s.tw)*.4;bgX.fillStyle='#fff';bgX.beginPath();bgX.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);bgX.fill();}for(const f of bgF){f.y-=f.sp;if(f.y<-.05)f.y=1.05;bgX.globalAlpha=f.a;bgX.font=`${f.sz}px Arial`;bgX.textAlign='center';bgX.fillStyle='#FFD700';bgX.fillText(f.t,f.x*W,f.y*H);}bgX.globalAlpha=1;requestAnimationFrame(drawBg);}
+    drawBg();
+
+    /* ── Confetti ── */
+    const cfC=document.getElementById('confetti-canvas'),cfX=cfC.getContext('2d');
+    cfC.width=innerWidth;cfC.height=innerHeight;
+    window.addEventListener('resize',()=>{cfC.width=innerWidth;cfC.height=innerHeight;});
+    let cp=[];
+    function burst(){const cols=['#FFD700','#22c55e','#3b82f6','#ec4899','#f97316','#8b5cf6'];for(let i=0;i<80;i++)cp.push({x:innerWidth/2+(Math.random()-.5)*300,y:innerHeight*.38,vx:(Math.random()-.5)*10,vy:-7-Math.random()*9,sz:6+Math.random()*8,col:cols[~~(Math.random()*cols.length)],rot:Math.random()*360,rv:(Math.random()-.5)*14,life:1});requestAnimationFrame(animCf);}
+    function animCf(){cfX.clearRect(0,0,cfC.width,cfC.height);cp=cp.filter(p=>p.life>.02);for(const p of cp){p.vy+=.38;p.x+=p.vx;p.y+=p.vy;p.rot+=p.rv;p.life-=.018;cfX.save();cfX.globalAlpha=p.life;cfX.translate(p.x,p.y);cfX.rotate(p.rot*Math.PI/180);cfX.fillStyle=p.col;cfX.fillRect(-p.sz/2,-p.sz/2,p.sz,p.sz*.55);cfX.restore();}if(cp.length>0)requestAnimationFrame(animCf);else cfX.clearRect(0,0,cfC.width,cfC.height);}
+
+    /* ── Game state ── */
+    let score=0, streak=0, level=1, roundsWon=0;
+    let target=0;
+    let rightWeights=[]; // array of numbers added to right pan
+    let locked=false;
+
+    const LEVELS = [
+      { max:10, weights:[1,2,5] },
+      { max:20, weights:[1,2,5,10] },
+      { max:50, weights:[1,2,5,10,20] },
+      { max:100, weights:[1,2,5,10,20,50] },
+    ];
+
+    function levelConfig(){
+      return LEVELS[Math.min(level-1, LEVELS.length-1)];
+    }
+
+    function rightTotal(){
+      return rightWeights.reduce((a,b)=>a+b,0);
+    }
+
+    /* ── New round ── */
+    function newQ(){
+      locked=false;
+      rightWeights=[];
+      const cfg=levelConfig();
+      // pick a target that's reachable with a handful of the level's weights
+      target = 1 + Math.floor(Math.random()*cfg.max);
+
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('scale-card').classList.remove('balanced');
+      document.getElementById('message').className='';
+      document.getElementById('remove-btn').disabled=true;
+      document.getElementById('level').textContent=level;
+
+      renderWeightButtons();
+      renderScale();
+      setMsg('¡AGREGA PESAS AL LADO DERECHO PARA EQUILIBRAR LA BALANZA!','');
+    }
+
+    function renderWeightButtons(){
+      const wrap=document.getElementById('weight-btns');
+      wrap.innerHTML='';
+      wrap.style.display='flex';
+      wrap.style.gap='12px';
+      wrap.style.flexWrap='wrap';
+      wrap.style.justifyContent='center';
+      levelConfig().weights.forEach(w=>{
+        const b=document.createElement('button');
+        b.className='ctrl-btn add-btn';
+        b.textContent=`➕ +${w}`;
+        b.onclick=()=>addWeight(w);
+        b.id='add-'+w;
+        wrap.appendChild(b);
+      });
+    }
+
+    /* ── Add a weight to the right pan ── */
+    function addWeight(w){
+      if(locked) return;
+      rightWeights.push(w);
+      document.getElementById('remove-btn').disabled=false;
+      renderScale(true);
+
+      if(rightTotal()===target){
+        onBalanced();
+      } else {
+        setMsg(`Lado derecho: ${rightTotal()} — objetivo: ${target}`,'');
+      }
+    }
+
+    /* ── Remove the last added weight ── */
+    function removeWeight(){
+      if(locked || rightWeights.length===0) return;
+      rightWeights.pop();
+      document.getElementById('remove-btn').disabled = rightWeights.length===0;
+      renderScale();
+      setMsg(rightWeights.length ? `Lado derecho: ${rightTotal()} — objetivo: ${target}` : '¡AGREGA PESAS AL LADO DERECHO PARA EQUILIBRAR LA BALANZA!','');
+    }
+
+    /* ── Render beam tilt + pans ── */
+    function renderScale(animateLast){
+      const diff = rightTotal() - target; // >0 means right heavier
+      const cfg = levelConfig();
+      const maxDiff = cfg.max; // normalize tilt against level range
+      let angle = (diff/maxDiff) * 13;
+      angle = Math.max(-13, Math.min(13, angle));
+      document.getElementById('beam').style.transform = `translateX(-50%) rotate(${angle}deg)`;
+
+      /* left pan: fixed target weight block */
+      const panLeft=document.getElementById('pan-left');
+      panLeft.innerHTML='';
+      const t=document.createElement('div');
+      t.className='weight-block target';
+      t.textContent=target;
+      panLeft.appendChild(t);
+
+      /* right pan: stack of added weight blocks */
+      const panRight=document.getElementById('pan-right');
+      panRight.innerHTML='';
+      rightWeights.forEach((w,i)=>{
+        const b=document.createElement('div');
+        b.className='weight-block'+(animateLast && i===rightWeights.length-1 ? ' new' : '');
+        b.textContent=w;
+        panRight.appendChild(b);
+      });
+    }
+
+    /* ── Called the moment right total equals target ── */
+    function onBalanced(){
+      locked=true;
+      streak++;
+      roundsWon++;
+      document.querySelectorAll('.add-btn').forEach(b=>b.disabled=true);
+      document.getElementById('remove-btn').disabled=true;
+      document.getElementById('scale-card').classList.add('balanced');
+
+      let bonus = 10;
+      if(rightWeights.length<=2) bonus += 8; // efficiency bonus: few pieces
+      if(streak>1) bonus += streak*2; // streak bonus
+
+      score+=bonus;
+      document.getElementById('score').textContent=score;
+      document.getElementById('streak').textContent=streak;
+
+      setMsg(`⚖️ ¡EQUILIBRADO! +${bonus} PTS`,'balanced');
+      burst();
+
+      if(roundsWon % 5 === 0 && level < LEVELS.length){
+        level++;
+      }
+
+      document.getElementById('next-btn').style.display='inline-block';
+    }
+
+    function nextQ(){ newQ(); }
+
+    function setMsg(t,c){const e=document.getElementById('message');e.textContent=t;e.className=c;}
+
+    newQ();
+  </script>
+</body>
+</html>

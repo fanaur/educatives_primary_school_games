@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Juegos de Matemáticas</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f1a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    canvas#bg {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+      padding: 20px;
+    }
+
+    .back-btn {
+      position: fixed;
+      top: 20px;
+      left: 24px;
+      z-index: 10;
+      background: rgba(255,255,255,0.08);
+      border: 2px solid rgba(255,215,0,0.35);
+      color: #FFD700;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      font-size: 14px;
+      font-weight: bold;
+      padding: 8px 18px;
+      border-radius: 30px;
+      cursor: pointer;
+      text-decoration: none;
+      letter-spacing: 1px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .back-btn:hover {
+      background: rgba(255,215,0,0.15);
+      border-color: #FFD700;
+    }
+
+    .title { text-align: center; }
+    .title h1 {
+      font-size: 52px;
+      color: #FFD700;
+      text-shadow: 0 0 30px rgba(255,215,0,0.5), 3px 3px 0 #b8860b;
+      letter-spacing: 4px;
+    }
+    .title p {
+      color: #aac4e0;
+      font-size: 18px;
+      margin-top: 6px;
+      letter-spacing: 2px;
+    }
+
+    .games-grid {
+      display: flex;
+      gap: 30px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .game-card {
+      width: 220px;
+      background: rgba(255,255,255,0.05);
+      border: 2px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 28px 20px 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+    .game-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 60%);
+      border-radius: 18px;
+    }
+    .game-card:hover {
+      transform: translateY(-6px) scale(1.03);
+      border-color: #FFD700;
+      background: rgba(255,215,0,0.08);
+      box-shadow: 0 12px 40px rgba(255,215,0,0.2);
+    }
+
+    .card-icon {
+      width: 90px;
+      height: 90px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+    }
+
+    .card-label {
+      color: #FFFFFF;
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      line-height: 1.3;
+    }
+    .card-desc {
+      color: #94a3b8;
+      font-size: 13px;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .card-badge {
+      background: linear-gradient(90deg, #FFD700, #F59E0B);
+      color: #1a1a1a;
+      font-size: 13px;
+      font-weight: bold;
+      padding: 6px 20px;
+      border-radius: 30px;
+      letter-spacing: 1px;
+      transition: transform 0.1s;
+    }
+    .game-card:hover .card-badge { transform: scale(1.08); }
+
+    .footer {
+      color: #334155;
+      font-size: 13px;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <a class="back-btn" href="../index.html">← INICIO</a>
+
+  <div class="content">
+    <div class="title">
+      <h1>⭐ JUEGOS DE MATEMÁTICAS ⭐</h1>
+      <p>¡APRENDE MIENTRAS JUEGAS!</p>
+    </div>
+
+    <div class="games-grid">
+      <a class="game-card" href="math-jump.html">
+        <div class="card-icon" style="background:linear-gradient(135deg,#F59E0B,#D97706)">🧮</div>
+        <div class="card-label">¡SALTO MATEMÁTICO!</div>
+        <div class="card-desc">¡SALTA SOBRE LA RESPUESTA CORRECTA Y SUBE LO MÁS ALTO QUE PUEDAS!</div>
+        <span class="card-badge">▶ JUGAR</span>
+      </a>
+
+      <a class="game-card" href="keyboard-math.html">
+        <div class="card-icon" style="background:linear-gradient(135deg,#3B82F6,#1D4ED8)">⌨️</div>
+        <div class="card-label">MATEMÁTICA CON TECLAS</div>
+        <div class="card-desc">¡RESUELVE A + ? = B PRESIONANDO LA TECLA NUMÉRICA CORRECTA!</div>
+        <span class="card-badge">▶ JUGAR</span>
+      </a>
+
+      <a class="game-card" href="target-shot.html">
+        <div class="card-icon" style="background:linear-gradient(135deg,#22C55E,#15803D)">🎯</div>
+        <div class="card-label">¡TIRO AL BLANCO!</div>
+        <div class="card-desc">¡REVIENTA EL GLOBO CON LA RESPUESTA CORRECTA USANDO UN ARCO!</div>
+        <span class="card-badge">▶ JUGAR</span>
+      </a>
+
+      <a class="game-card" href="abacus-math.html">
+        <div class="card-icon" style="background:linear-gradient(135deg,#7c3aed,#4c1d95)">🧮</div>
+        <div class="card-label">ÁBACO MATEMÁTICO</div>
+        <div class="card-desc">¡USA EL ÁBACO PARA CONTAR LAS BOLITAS Y ENCONTRAR LA SUMA!</div>
+        <span class="card-badge">▶ JUGAR</span>
+      </a>
+
+      <a class="game-card" href="math-puzzle.html">
+        <div class="card-icon" style="background:linear-gradient(135deg,#0891b2,#0e7490)">🧩</div>
+        <div class="card-label">ROMPECABEZAS DE SUMAS</div>
+        <div class="card-desc">¡COLOCA LAS FICHAS EN EL LUGAR CORRECTO PARA COMPLETAR LAS ECUACIONES!</div>
+        <span class="card-badge">▶ JUGAR</span>
+      </a>
+
+      <a class="game-card" href="frog-jump.html">
+        <div class="card-icon" style="background:linear-gradient(135deg,#16a34a,#065f46)">🐸</div>
+        <div class="card-label">RANA SALTARINA</div>
+        <div class="card-desc">¡HAZ SALTAR A LA RANA AL NENÚFAR CON LA RESPUESTA CORRECTA!</div>
+        <span class="card-badge">▶ JUGAR</span>
+      </a>
+
+      <a class="game-card" href="fishing-math.html">
+        <div class="card-icon" style="background:linear-gradient(135deg,#0891b2,#164e63)">🎣</div>
+        <div class="card-label">PESCA MATEMÁTICA</div>
+        <div class="card-desc">¡LANZA EL ANZUELO Y ATRAPA EL PEZ CON LA RESPUESTA CORRECTA!</div>
+        <span class="card-badge">▶ JUGAR</span>
+      </a>
+
+      <a class="game-card" href="emoji-sum.html">
+        <div class="card-icon" style="background:linear-gradient(135deg,#ec4899,#9333ea)">➕</div>
+        <div class="card-label">SUMA CON EMOJIS</div>
+        <div class="card-desc">¡CUENTA LOS EMOJIS Y ELIGE LA RESPUESTA CORRECTA!</div>
+        <span class="card-badge">▶ JUGAR</span>
+      </a>
+
+      <a class="game-card" href="sequence.html">
+        <div class="card-icon" style="background:linear-gradient(135deg,#06b6d4,#0e7490)">🔢</div>
+        <div class="card-label">SECUENCIA DE NÚMEROS</div>
+        <div class="card-desc">¡ENCUENTRA EL NÚMERO QUE FALTA EN LA SECUENCIA!</div>
+        <span class="card-badge">▶ JUGAR</span>
+      </a>
+
+      <a class="game-card" href="subtraction.html">
+        <div class="card-icon" style="background:linear-gradient(135deg,#ef4444,#b91c1c)">➖</div>
+        <div class="card-label">PRÁCTICA DE RESTA</div>
+        <div class="card-desc">¡ESCRIBE EL RESULTADO CORRECTO DE LA RESTA!</div>
+        <span class="card-badge">▶ JUGAR</span>
+      </a>
+
+      <a class="game-card" href="dice-sum.html">
+        <div class="card-icon" style="background:linear-gradient(135deg,#334155,#1e293b)">🎲</div>
+        <div class="card-label">SUMA DE DADOS</div>
+        <div class="card-desc">¡LANZA LOS DADOS Y SUMA LOS PUNTOS!</div>
+        <span class="card-badge">▶ JUGAR</span>
+      </a>
+    </div>
+
+    <div class="footer">¡MÁS JUEGOS PRÓXIMAMENTE!</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('bg');
+    const ctx    = canvas.getContext('2d');
+
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const stars = Array.from({ length: 160 }, () => ({
+      x: Math.random(), y: Math.random(),
+      r: 0.5 + Math.random() * 1.5,
+      speed: 0.00008 + Math.random() * 0.00015,
+      twinkle: Math.random() * Math.PI * 2,
+    }));
+
+    const symbols = ['+','−','=','1','2','3','4','5','6','7','8','9','10'];
+    const floaters = Array.from({ length: 18 }, () => ({
+      text: symbols[Math.floor(Math.random() * symbols.length)],
+      x: Math.random(), y: Math.random(),
+      speed: 0.0001 + Math.random() * 0.0002,
+      size: 14 + Math.random() * 18,
+      alpha: 0.04 + Math.random() * 0.08,
+    }));
+
+    function drawBg() {
+      const W = canvas.width, H = canvas.height;
+      ctx.fillStyle = '#0f0f1a';
+      ctx.fillRect(0, 0, W, H);
+
+      for (const s of stars) {
+        s.twinkle += s.speed * 60;
+        ctx.globalAlpha = 0.4 + Math.sin(s.twinkle) * 0.4;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      for (const f of floaters) {
+        f.y -= f.speed;
+        if (f.y < -0.05) f.y = 1.05;
+        ctx.globalAlpha = f.alpha;
+        ctx.fillStyle = '#FFD700';
+        ctx.font = `bold ${f.size}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText(f.text, f.x * W, f.y * H);
+      }
+
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(drawBg);
+    }
+    drawBg();
+  </script>
+</body>
+</html>

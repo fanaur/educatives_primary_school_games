@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Engranajes en Cadena – MicaGames</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background:#0f0f1a;
+      min-height:100vh;
+      display:flex; flex-direction:column; align-items:center;
+      font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y:auto; overflow-x:hidden;
+      user-select:none;
+    }
+
+    canvas#bg { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+
+    #game {
+      position:relative; z-index:1;
+      display:flex; flex-direction:column;
+      align-items:center; gap:18px;
+      padding:18px 14px 40px;
+      width:100%; max-width:860px;
+    }
+
+    /* ── Top bar ── */
+    #topbar { display:flex; align-items:center; gap:14px; width:100%; }
+    .home-btn {
+      text-decoration:none;
+      background:rgba(255,255,255,0.08);
+      border:2px solid rgba(255,255,255,0.15);
+      border-radius:50%; width:44px; height:44px;
+      display:flex; align-items:center; justify-content:center; font-size:1.3rem;
+      transition:border-color .15s, background .15s;
+    }
+    .home-btn:hover { border-color:#FFD700; background:rgba(255,215,0,.1); }
+    .page-title {
+      color:#FFD700; font-size:20px;
+      text-shadow:0 0 20px rgba(255,215,0,.4), 2px 2px 0 #b8860b;
+      letter-spacing:1px;
+    }
+
+    /* ── HUD ── */
+    #hud { display:flex; gap:28px; align-items:center; }
+    .hud-box { text-align:center; }
+    .hud-label { color:#64748b; font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+    .hud-value { color:#FFD700; font-size:26px; font-weight:bold; text-shadow:0 0 14px rgba(255,215,0,.4); }
+
+    /* ── Hint ── */
+    #hint {
+      color:#64748b; font-size:13px; text-align:center; letter-spacing:.5px;
+      max-width:560px;
+    }
+
+    /* ── Machine card ── */
+    #machine-card {
+      width:100%;
+      background:rgba(255,255,255,.05);
+      border:2px solid rgba(255,255,255,.1);
+      border-radius:28px;
+      padding:26px 16px 22px;
+      display:flex; flex-direction:column;
+      align-items:center; gap:20px;
+      transition:border-color .3s, box-shadow .3s;
+      overflow-x:auto;
+    }
+    #machine-card.matched { border-color:#22c55e; box-shadow:0 0 40px rgba(34,197,94,.3); }
+
+    /* ── Gear chain row ── */
+    #chain-row {
+      display:flex; align-items:center; justify-content:center;
+      gap:0; flex-wrap:nowrap; min-height:140px;
+      width:100%; padding:0 8px;
+    }
+
+    .gear-wrap {
+      display:flex; flex-direction:column; align-items:center; gap:6px;
+      flex-shrink:0;
+      position:relative;
+      z-index:1;
+    }
+    /* Overlap adjacent gears so their teeth appear meshed */
+    .gear-wrap + .gear-wrap { margin-left:-16px; }
+    .gear-wrap:hover { z-index:2; }
+
+    /* ── Real CSS gear graphic (built from JS: teeth + body + hole) ── */
+    .gear-visual {
+      position:relative;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,.5));
+      animation-timing-function: linear;
+      animation-iteration-count: infinite;
+    }
+    .gear-visual.spin-cw  { animation-name: spinCW; }
+    .gear-visual.spin-ccw { animation-name: spinCCW; }
+    @keyframes spinCW  { from{ transform:rotate(0deg);   } to{ transform:rotate(360deg); } }
+    @keyframes spinCCW { from{ transform:rotate(360deg); } to{ transform:rotate(0deg);   } }
+
+    .gear-tooth {
+      position:absolute; top:50%; left:50%;
+      background: linear-gradient(160deg,#cbd5e1,#64748b);
+      border-radius:2px;
+      z-index:1;
+    }
+    .gear-body {
+      position:absolute; top:50%; left:50%;
+      border-radius:50%;
+      background: radial-gradient(circle at 35% 30%, #e2e8f0 0%, #94a3b8 55%, #475569 100%);
+      box-shadow: inset 0 3px 6px rgba(255,255,255,.4), inset 0 -6px 10px rgba(0,0,0,.35);
+      z-index:2;
+    }
+    .gear-hole {
+      position:absolute; top:50%; left:50%;
+      border-radius:50%;
+      background:#1e293b;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,.6);
+      z-index:3;
+    }
+
+    /* Goal gear at the very end of the chain: dim + gray until reached */
+    .gear-visual.goal .gear-tooth { background: linear-gradient(160deg,#94a3b8,#475569); opacity:.4; }
+    .gear-visual.goal .gear-body  { background: radial-gradient(circle at 35% 30%, #64748b 0%, #475569 55%, #334155 100%); opacity:.4; }
+    .gear-visual.goal.reached .gear-tooth {
+      background: linear-gradient(160deg,#86efac,#22c55e);
+      opacity:1;
+    }
+    .gear-visual.goal.reached .gear-body {
+      background: radial-gradient(circle at 35% 30%, #bbf7d0 0%, #22c55e 55%, #15803d 100%);
+      opacity:1;
+      box-shadow: inset 0 3px 6px rgba(255,255,255,.5), inset 0 -6px 10px rgba(0,0,0,.3), 0 0 16px rgba(34,197,94,.7);
+    }
+
+    .goal-badge {
+      font-size:9px; color:#FFD700; letter-spacing:.5px; text-align:center;
+      display:flex; align-items:center; gap:3px;
+    }
+    .goal-badge .arrow { font-size:1rem; }
+    .goal-badge.reached { color:#4ade80; }
+
+    .gear-label {
+      font-size:9px; color:#94a3b8; letter-spacing:.5px; text-align:center;
+    }
+
+    /* Pop-in animation for newly added gear */
+    @keyframes gearPopIn {
+      from { transform:scale(0) rotate(-30deg); opacity:0; }
+      to   { transform:scale(1) rotate(0deg);   opacity:1; }
+    }
+    .gear-wrap.new { animation: gearPopIn .3s cubic-bezier(.175,.885,.32,1.275) both; }
+
+    /* ── Message ── */
+    #message {
+      font-size:17px; font-weight:bold; letter-spacing:1px;
+      min-height:26px; text-align:center; color:#e2e8f0;
+    }
+    #message.matched { color:#22c55e; text-shadow:0 0 12px rgba(34,197,94,.5); }
+
+    /* ── Controls ── */
+    #controls {
+      display:flex; gap:14px; flex-wrap:wrap; justify-content:center; width:100%;
+    }
+
+    .ctrl-btn {
+      padding:16px 28px;
+      font-size:1.05rem; font-family:inherit; font-weight:bold; color:#fff;
+      border-radius:50px; cursor:pointer;
+      transition:transform .12s, background .12s, box-shadow .12s;
+      border:3px solid transparent;
+    }
+    #add-btn {
+      background:linear-gradient(90deg,#8b5cf6,#6d28d9);
+      box-shadow:0 5px 22px rgba(139,92,246,.4);
+    }
+    #add-btn:hover:not(:disabled) { transform:scale(1.06); }
+    #add-btn:disabled { opacity:.4; cursor:default; }
+
+    #remove-btn {
+      background:rgba(239,68,68,.15);
+      border-color:rgba(239,68,68,.4);
+      color:#f87171;
+    }
+    #remove-btn:hover:not(:disabled) { background:rgba(239,68,68,.28); transform:scale(1.05); }
+    #remove-btn:disabled { opacity:.3; cursor:default; }
+
+    /* ── Next button ── */
+    #next-btn {
+      display:none; padding:13px 44px;
+      font-size:1.15rem; font-family:inherit; font-weight:bold; color:#1a1a1a;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      border:none; border-radius:50px; cursor:pointer;
+      box-shadow:0 5px 22px rgba(255,215,0,.4); transition:transform .12s;
+    }
+    #next-btn:hover { transform:scale(1.07); }
+
+    .confetti-layer { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:50; }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas id="confetti-canvas" class="confetti-layer"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html">🏠</a>
+      <span class="page-title">⚙️ ENGRANAJES EN CADENA</span>
+    </div>
+
+    <div id="hud">
+      <div class="hud-box">
+        <div class="hud-label">Puntos</div>
+        <div class="hud-value" id="score">0</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">Engranajes</div>
+        <div class="hud-value" id="gear-count">0</div>
+      </div>
+    </div>
+
+    <div id="hint">💡 CADA ENGRANAJE GIRA EN SENTIDO CONTRARIO AL ENGRANAJE ANTERIOR — ¡LLEGA HASTA EL ENGRANAJE META!</div>
+
+    <div id="machine-card">
+      <div id="chain-row"></div>
+      <div id="message">¡AGREGA ENGRANAJES HASTA LOGRAR EL SENTIDO OBJETIVO!</div>
+    </div>
+
+    <button id="next-btn" onclick="nextQ()">SIGUIENTE ➡️</button>
+
+    <div id="controls">
+      <button id="add-btn" onclick="addGear()">➕ AGREGAR ENGRANAJE</button>
+      <button id="remove-btn" onclick="removeGear()" disabled>↩️ QUITAR ÚLTIMO</button>
+    </div>
+  </div>
+
+  <script>
+    /* ── Starfield ── */
+    const bgC=document.getElementById('bg'),bgX=bgC.getContext('2d');
+    function rbg(){bgC.width=innerWidth;bgC.height=innerHeight;}
+    rbg();window.addEventListener('resize',rbg);
+    const stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*1.5,sp:.00008+Math.random()*.00015,tw:Math.random()*Math.PI*2}));
+    const bgF=['⚙️','↻','↺'].map(c=>({t:c,x:Math.random(),y:Math.random(),sp:.0001+Math.random()*.0002,sz:14+Math.random()*16,a:.04+Math.random()*.07}));
+    function drawBg(){const W=bgC.width,H=bgC.height;bgX.fillStyle='#0f0f1a';bgX.fillRect(0,0,W,H);for(const s of stars){s.tw+=s.sp*60;bgX.globalAlpha=.4+Math.sin(s.tw)*.4;bgX.fillStyle='#fff';bgX.beginPath();bgX.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);bgX.fill();}for(const f of bgF){f.y-=f.sp;if(f.y<-.05)f.y=1.05;bgX.globalAlpha=f.a;bgX.font=`${f.sz}px Arial`;bgX.textAlign='center';bgX.fillStyle='#FFD700';bgX.fillText(f.t,f.x*W,f.y*H);}bgX.globalAlpha=1;requestAnimationFrame(drawBg);}
+    drawBg();
+
+    /* ── Confetti ── */
+    const cfC=document.getElementById('confetti-canvas'),cfX=cfC.getContext('2d');
+    cfC.width=innerWidth;cfC.height=innerHeight;
+    window.addEventListener('resize',()=>{cfC.width=innerWidth;cfC.height=innerHeight;});
+    let cp=[];
+    function burst(){const cols=['#FFD700','#22c55e','#3b82f6','#ec4899','#f97316','#8b5cf6'];for(let i=0;i<80;i++)cp.push({x:innerWidth/2+(Math.random()-.5)*300,y:innerHeight*.38,vx:(Math.random()-.5)*10,vy:-7-Math.random()*9,sz:6+Math.random()*8,col:cols[~~(Math.random()*cols.length)],rot:Math.random()*360,rv:(Math.random()-.5)*14,life:1});requestAnimationFrame(animCf);}
+    function animCf(){cfX.clearRect(0,0,cfC.width,cfC.height);cp=cp.filter(p=>p.life>.02);for(const p of cp){p.vy+=.38;p.x+=p.vx;p.y+=p.vy;p.rot+=p.rv;p.life-=.018;cfX.save();cfX.globalAlpha=p.life;cfX.translate(p.x,p.y);cfX.rotate(p.rot*Math.PI/180);cfX.fillStyle=p.col;cfX.fillRect(-p.sz/2,-p.sz/2,p.sz,p.sz*.55);cfX.restore();}if(cp.length>0)requestAnimationFrame(animCf);else cfX.clearRect(0,0,cfC.width,cfC.height);}
+
+    const DRIVE_SIZE=88;
+
+    let score=0, totalGears=0;
+    let requiredDir='cw';
+    let chain=[];        // [{size, dir}]
+    let locked=false;
+
+    function opposite(dir){ return dir==='cw' ? 'ccw' : 'cw'; }
+
+    /* ── New round ── */
+    function newQ(){
+      locked=false;
+      chain=[];
+      requiredDir = Math.random()<0.5 ? 'cw' : 'ccw';
+
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('machine-card').classList.remove('matched');
+      document.getElementById('add-btn').disabled=false;
+      document.getElementById('remove-btn').disabled=true;
+
+      setMsg('¡AGREGA ENGRANAJES HASTA LOGRAR EL SENTIDO OBJETIVO!','');
+      renderChain();
+    }
+
+    /* Current tail direction: last gear in chain, or the drive gear itself */
+    function tailDir(){
+      return chain.length ? chain[chain.length-1].dir : 'cw';
+    }
+
+    /* ── Add a gear of random size, alternating direction ── */
+    function addGear(){
+      if(locked) return;
+
+      const newDir = opposite(tailDir());
+      const size = 42 + Math.floor(Math.random()*46); // 42px .. 88px
+      chain.push({size, dir:newDir});
+      totalGears++;
+      document.getElementById('gear-count').textContent=totalGears;
+      document.getElementById('remove-btn').disabled=false;
+
+      renderChain(true);
+
+      if(newDir === requiredDir){
+        onMatched();
+      }
+    }
+
+    /* ── Remove the last added gear ── */
+    function removeGear(){
+      if(locked || chain.length===0) return;
+      chain.pop();
+      document.getElementById('remove-btn').disabled = chain.length===0;
+      renderChain();
+    }
+
+    /* ── Render the full chain: drive gear + all added gears ── */
+    function renderChain(animateLast){
+      const row=document.getElementById('chain-row');
+      row.innerHTML='';
+
+      /* Drive gear */
+      row.appendChild(makeGearWrap(DRIVE_SIZE, 'cw', 'MOTOR', false));
+
+      chain.forEach((g,i)=>{
+        const isLast = animateLast && i===chain.length-1;
+        row.appendChild(makeGearWrap(g.size, g.dir, `#${i+1}`, isLast));
+      });
+
+      /* Goal gear always sits at the end of the sequence, meshed against the chain */
+      row.appendChild(makeGoalGearWrap());
+    }
+
+    /* Build a real CSS gear graphic: teeth + body + center hole, sized in px */
+    function buildGearVisual(size, extraClass){
+      const wrap=el('div', `gear-visual${extraClass?(' '+extraClass):''}`);
+      wrap.style.width=size+'px';
+      wrap.style.height=size+'px';
+
+      const teethCount=10;
+      const toothW=Math.max(4, size*0.14);
+      const toothH=Math.max(6, size*0.24);
+      const radius=size/2 - toothH*0.32;
+
+      for(let i=0;i<teethCount;i++){
+        const tooth=el('div','gear-tooth');
+        tooth.style.width=toothW+'px';
+        tooth.style.height=toothH+'px';
+        tooth.style.marginLeft=(-toothW/2)+'px';
+        tooth.style.marginTop=(-toothH/2)+'px';
+        const angle=i*(360/teethCount);
+        tooth.style.transform=`rotate(${angle}deg) translateY(-${radius}px)`;
+        wrap.appendChild(tooth);
+      }
+
+      const bodySize=size*0.76;
+      const body=el('div','gear-body');
+      body.style.width=bodySize+'px';
+      body.style.height=bodySize+'px';
+      body.style.marginLeft=(-bodySize/2)+'px';
+      body.style.marginTop=(-bodySize/2)+'px';
+      wrap.appendChild(body);
+
+      const holeSize=size*0.22;
+      const hole=el('div','gear-hole');
+      hole.style.width=holeSize+'px';
+      hole.style.height=holeSize+'px';
+      hole.style.marginLeft=(-holeSize/2)+'px';
+      hole.style.marginTop=(-holeSize/2)+'px';
+      wrap.appendChild(hole);
+
+      return wrap;
+    }
+
+    /* The static goal gear: dim + gray until reached, then lights up green and spins */
+    function makeGoalGearWrap(){
+      const wrap=el('div','gear-wrap');
+      const gear=buildGearVisual(DRIVE_SIZE, `goal${locked?' spin-'+requiredDir+' reached':''}`);
+      gear.id='goal-gear';
+      gear.style.animationDuration='2s';
+      wrap.appendChild(gear);
+
+      const badge=el('div', 'goal-badge'+(locked?' reached':''));
+      badge.innerHTML=`<span class="arrow">${requiredDir==='cw'?'↻':'↺'}</span><span>${locked?'¡META!':'META'}</span>`;
+      wrap.appendChild(badge);
+      return wrap;
+    }
+
+    function makeGearWrap(size, dir, label, isNew){
+      const wrap=el('div', 'gear-wrap'+(isNew?' new':''));
+      const gear=buildGearVisual(size, `spin-${dir}`);
+      /* Bigger gears spin a bit slower, like real meshed gears */
+      const duration=(size/44).toFixed(2);
+      gear.style.animationDuration=duration+'s';
+      wrap.appendChild(gear);
+      wrap.appendChild(el('div','gear-label',label));
+      return wrap;
+    }
+
+    /* ── Called the moment the tail direction matches the target ── */
+    function onMatched(){
+      locked=true;
+      document.getElementById('add-btn').disabled=true;
+      document.getElementById('remove-btn').disabled=true;
+      document.getElementById('machine-card').classList.add('matched');
+
+      const bonus = 10 + chain.length*2;
+      score+=bonus;
+      document.getElementById('score').textContent=score;
+
+      setMsg(`✅ ¡LOGRADO CON ${chain.length} ENGRANAJE${chain.length===1?'':'S'}! +${bonus} PTS`,'matched');
+      burst();
+      renderChain();
+
+      document.getElementById('next-btn').style.display='inline-block';
+    }
+
+    function setMsg(t,c){const e=document.getElementById('message');e.textContent=t;e.className=c;}
+    function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+
+    newQ();
+  </script>
+</body>
+</html>

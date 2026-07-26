@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Construye la Palabra – Juegos de Letras</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f1a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y: auto;
+      overflow-x: hidden;
+      user-select: none;
+    }
+
+    canvas#bg {
+      position: fixed; top: 0; left: 0;
+      width: 100%; height: 100%; z-index: 0;
+    }
+
+    #game {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 16px;
+      padding: 20px; width: 100%;
+    }
+
+    /* ── Top bar ── */
+    #topbar {
+      display: flex; align-items: center;
+      gap: 20px; width: 100%; max-width: 680px;
+    }
+    .home-btn {
+      text-decoration: none;
+      background: rgba(255,255,255,0.08);
+      border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 50%;
+      width: 46px; height: 46px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .home-btn:hover { border-color: #FFD700; background: rgba(255,215,0,0.1); }
+    .page-title {
+      color: #FFD700; font-size: 28px;
+      text-shadow: 0 0 20px rgba(255,215,0,0.4), 2px 2px 0 #b8860b;
+      letter-spacing: 3px;
+    }
+
+    /* ── HUD ── */
+    #hud { display: flex; gap: 40px; align-items: center; }
+    .hud-box { text-align: center; }
+    .hud-label { color: #64748b; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+    .hud-value { color: #FFD700; font-size: 30px; font-weight: bold; text-shadow: 0 0 18px rgba(255,215,0,0.5); }
+
+    /* ── Hint card ── */
+    #hint-card {
+      background: rgba(255,255,255,0.06);
+      border: 2px solid rgba(255,255,255,0.12);
+      border-radius: 24px;
+      padding: 12px 40px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+    }
+    #hint-emoji { font-size: 3.6rem; line-height: 1; }
+    #hint-card-label { color: #64748b; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+
+    /* ── Message ── */
+    #message {
+      color: #e2e8f0; font-size: 18px; letter-spacing: 1px;
+      min-height: 28px; text-align: center;
+    }
+    #message.correct { color: #22c55e; text-shadow: 0 0 12px rgba(34,197,94,0.5); }
+    #message.wrong   { color: #ef4444; text-shadow: 0 0 12px rgba(239,68,68,0.5); }
+
+    /* ── Slots ── */
+    #slots { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+    .slot {
+      width: 70px; height: 78px;
+      border: 3px dashed rgba(255,255,255,0.2);
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem; font-weight: bold; color: #FFD700;
+      background: rgba(255,255,255,0.04);
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    }
+    .slot.drag-over {
+      border-color: #FFD700; border-style: solid;
+      background: rgba(255,215,0,0.14);
+      transform: scale(1.08);
+    }
+    .slot.filled  { border-style: solid; border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.08); }
+    .slot.correct { border-color: #22c55e; background: rgba(34,197,94,0.18); color: #22c55e; }
+    .slot.wrong   { border-color: #ef4444; background: rgba(239,68,68,0.18); color: #ef4444; }
+
+    /* ── Tiles ── */
+    #tiles { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; max-width: 500px; }
+
+    .tile {
+      width: 70px; height: 78px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+      border: 2px solid rgba(255,255,255,0.22);
+      color: #FFD700;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem; font-weight: bold;
+      cursor: grab;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+      transition: transform 0.12s, border-color 0.12s, opacity 0.15s;
+    }
+    .tile:hover    { transform: scale(1.1) translateY(-4px); border-color: #FFD700; }
+    .tile.dragging { opacity: 0.3; cursor: grabbing; }
+    .tile.used     { visibility: hidden; pointer-events: none; }
+
+    /* ── Next button ── */
+    #next-btn {
+      display: none;
+      padding: 12px 36px;
+      font-size: 1.2rem; font-family: inherit; font-weight: bold;
+      color: #1a1a1a;
+      background: linear-gradient(90deg, #FFD700, #F59E0B);
+      border: none; border-radius: 50px; cursor: pointer;
+      box-shadow: 0 5px 20px rgba(255,215,0,0.35);
+      transition: transform 0.12s;
+    }
+    #next-btn:hover { transform: scale(1.07); }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html">🏠</a>
+      <span class="page-title">🔤 CONSTRUYE LA PALABRA</span>
+    </div>
+
+    <div id="hud">
+      <div class="hud-box"><div class="hud-label">Puntos</div><div class="hud-value" id="score">0</div></div>
+      <div class="hud-box"><div class="hud-label">Palabra</div><div class="hud-value" id="word-num">1</div></div>
+    </div>
+
+    <div id="hint-card">
+      <div id="hint-emoji">🐱</div>
+      <div id="hint-card-label">¿Qué palabra es esta?</div>
+    </div>
+
+    <div id="message">¡ARRASTRA LAS LETRAS AL ESPACIO CORRECTO!</div>
+    <div id="slots"></div>
+    <div id="tiles"></div>
+    <button id="next-btn" onclick="nextWord()">SIGUIENTE PALABRA ➡️</button>
+  </div>
+
+  <script>
+    /* ── Starfield ── */
+    const canvas=document.getElementById('bg'), ctx=canvas.getContext('2d');
+    function resize(){canvas.width=innerWidth;canvas.height=innerHeight;}
+    resize(); window.addEventListener('resize',resize);
+    const stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*1.5,speed:.00008+Math.random()*.00015,twinkle:Math.random()*Math.PI*2}));
+    const floaters='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(c=>({text:c,x:Math.random(),y:Math.random(),speed:.0001+Math.random()*.0002,size:14+Math.random()*18,alpha:.03+Math.random()*.06}));
+    function drawBg(){
+      const W=canvas.width,H=canvas.height;
+      ctx.fillStyle='#0f0f1a';ctx.fillRect(0,0,W,H);
+      for(const s of stars){s.twinkle+=s.speed*60;ctx.globalAlpha=.4+Math.sin(s.twinkle)*.4;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);ctx.fill();}
+      for(const f of floaters){f.y-=f.speed;if(f.y<-.05)f.y=1.05;ctx.globalAlpha=f.alpha;ctx.fillStyle='#FFD700';ctx.font=`bold ${f.size}px Arial`;ctx.textAlign='center';ctx.fillText(f.text,f.x*W,f.y*H);}
+      ctx.globalAlpha=1;requestAnimationFrame(drawBg);
+    }
+    drawBg();
+
+    /* ── Word list ── */
+    const WORDS=[
+      {word:'GATO', emoji:'🐱'},
+      {word:'PATO', emoji:'🦆'},
+      {word:'RANA', emoji:'🐸'},
+      {word:'LUNA', emoji:'🌙'},
+      {word:'CASA', emoji:'🏠'},
+      {word:'TORO', emoji:'🐂'},
+      {word:'VACA', emoji:'🐄'},
+      {word:'LOBO', emoji:'🐺'},
+      {word:'MONO', emoji:'🐒'},
+      {word:'ROSA', emoji:'🌹'},
+      {word:'SOPA', emoji:'🍜'},
+      {word:'PERA', emoji:'🍐'},
+      {word:'COCO', emoji:'🥥'},
+      {word:'PINO', emoji:'🌲'},
+      {word:'NUBE', emoji:'☁️'},
+    ];
+
+    let score=0, wordNum=1, current=null;
+    let slotValues=[];        // letter placed in each slot ('' = empty)
+    let dragTile=null;        // tile element being dragged
+    let locked=false;         // true after correct answer
+    const usedIdx=[];
+
+    /* ── Pick word ── */
+    function pickWord(){
+      if(usedIdx.length>=WORDS.length) usedIdx.length=0;
+      let idx;
+      do { idx=Math.floor(Math.random()*WORDS.length); } while(usedIdx.includes(idx));
+      usedIdx.push(idx);
+      return WORDS[idx];
+    }
+
+    /* ── Build game ── */
+    function buildGame(){
+      current=pickWord();
+      slotValues=new Array(current.word.length).fill('');
+      locked=false;
+      document.getElementById('hint-emoji').textContent=current.emoji;
+      document.getElementById('next-btn').style.display='none';
+      setMessage('¡ARRASTRA LAS LETRAS AL ESPACIO CORRECTO!','');
+
+      /* Slots */
+      const slotsEl=document.getElementById('slots');
+      slotsEl.innerHTML='';
+      for(let i=0;i<current.word.length;i++){
+        const slot=document.createElement('div');
+        slot.className='slot';
+        slot.dataset.index=i;
+        slot.addEventListener('dragover', e=>{ e.preventDefault(); if(!locked) slot.classList.add('drag-over'); });
+        slot.addEventListener('dragleave', ()=>slot.classList.remove('drag-over'));
+        slot.addEventListener('drop', e=>onDrop(e,slot));
+        slotsEl.appendChild(slot);
+      }
+
+      /* Tiles — shuffled */
+      const letters=[...current.word].sort(()=>Math.random()-.5);
+      const tilesEl=document.getElementById('tiles');
+      tilesEl.innerHTML='';
+      letters.forEach((l,i)=>{
+        const tile=document.createElement('div');
+        tile.className='tile';
+        tile.textContent=l;
+        tile.draggable=true;
+        tile.dataset.id=String(i);
+        tile.addEventListener('dragstart', e=>{
+          dragTile=tile;
+          tile.classList.add('dragging');
+          e.dataTransfer.effectAllowed='move';
+          e.dataTransfer.setData('text/plain', i);
+        });
+        tile.addEventListener('dragend', ()=>tile.classList.remove('dragging'));
+        tilesEl.appendChild(tile);
+      });
+    }
+
+    /* ── Drop handler ── */
+    function onDrop(e, slot){
+      e.preventDefault();
+      slot.classList.remove('drag-over');
+      if(!dragTile || locked) return;
+
+      const idx=parseInt(slot.dataset.index);
+
+      /* If slot already has a letter → return its tile first */
+      if(slotValues[idx]!==''){
+        returnTileFor(slot.textContent, idx);
+      }
+
+      /* Place dragged tile into slot */
+      slotValues[idx]=dragTile.textContent;
+      slot.textContent=dragTile.textContent;
+      slot.classList.add('filled');
+      slot.classList.remove('correct','wrong');
+      dragTile.classList.add('used');
+      dragTile=null;
+
+      /* Auto-validate when all slots filled */
+      if(slotValues.every(v=>v!=='')){
+        setTimeout(validate, 300);
+      }
+    }
+
+    /* ── Return a tile to the pool ── */
+    function returnTileFor(letter, idx){
+      /* Un-hide the first used tile with this letter */
+      const tiles=document.querySelectorAll('.tile.used');
+      for(const t of tiles){
+        if(t.textContent===letter){ t.classList.remove('used'); break; }
+      }
+      slotValues[idx]='';
+      const slotEl=document.querySelector(`.slot[data-index="${idx}"]`);
+      if(slotEl){ slotEl.textContent=''; slotEl.classList.remove('filled','correct','wrong'); }
+    }
+
+    /* ── Validate answer ── */
+    function validate(){
+      const slots=document.querySelectorAll('.slot');
+      let allCorrect=true;
+      slots.forEach((s,i)=>{
+        if(slotValues[i]===current.word[i]){
+          s.classList.add('correct'); s.classList.remove('wrong');
+        } else {
+          s.classList.add('wrong'); s.classList.remove('correct');
+          allCorrect=false;
+        }
+      });
+
+      if(allCorrect){
+        locked=true;
+        score+=20; document.getElementById('score').textContent=score;
+        setMessage('⭐ ¡CORRECTO! ¡MUY BIEN!','correct');
+        document.getElementById('next-btn').style.display='inline-block';
+      } else {
+        setMessage('❌ ¡CASI! — VUELVE A INTENTARLO','wrong');
+        /* After 1 s, return wrong tiles so kid can retry */
+        setTimeout(()=>{
+          slots.forEach((s,i)=>{
+            if(s.classList.contains('wrong')){
+              returnTileFor(slotValues[i], i);
+            }
+          });
+          setMessage('¡ARRASTRA LAS LETRAS AL ESPACIO CORRECTO!','');
+        }, 1000);
+      }
+    }
+
+    /* ── Next word ── */
+    function nextWord(){
+      wordNum++; document.getElementById('word-num').textContent=wordNum;
+      buildGame();
+    }
+
+    function setMessage(text,cls){
+      const el=document.getElementById('message');
+      el.textContent=text; el.className=cls;
+    }
+
+    buildGame();
+  </script>
+</body>
+</html>

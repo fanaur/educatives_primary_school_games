@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>RANA SALTARINA</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f0f1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow: hidden;
+    }
+    canvas#bg {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+    }
+    .back-btn {
+      position: fixed;
+      top: 18px; left: 22px;
+      color: #64748b;
+      text-decoration: none;
+      font-size: 15px;
+      z-index: 100;
+    }
+    .back-btn:hover { color: #aaa; }
+    #game-wrap {
+      position: relative;
+      z-index: 1;
+      width: min(800px, 100vw);
+    }
+    #game-wrap canvas#game {
+      width: 100% !important;
+      height: auto !important;
+      display: block;
+      border: 3px solid rgba(255,215,0,0.4);
+      border-radius: 12px;
+    }
+    #controls-bar {
+      color: #64748b;
+      font-size: 13px;
+      text-align: center;
+      margin-top: 8px;
+      letter-spacing: 1px;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+    }
+    /* Overlay screens */
+    .overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(10,10,26,0.92);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9px;
+      z-index: 10;
+    }
+    .overlay h1 {
+      color: #FFD700;
+      font-size: 46px;
+      letter-spacing: 4px;
+      text-shadow: 0 0 30px rgba(255,215,0,0.5), 3px 3px 0 #b8860b;
+      margin-bottom: 10px;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+    }
+    .overlay .emoji { font-size: 60px; margin-bottom: 10px; }
+    .overlay p {
+      color: #aac4e0;
+      font-size: 15px;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+      text-align: center;
+      padding: 0 30px;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+    }
+    .overlay .score-display {
+      color: #FFD700;
+      font-size: 28px;
+      margin: 14px 0;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+    }
+    .overlay button {
+      margin-top: 22px;
+      background: #FFD700;
+      color: #0f0f1a;
+      border: none;
+      border-radius: 30px;
+      padding: 14px 44px;
+      font-size: 20px;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      letter-spacing: 2px;
+      cursor: pointer;
+      box-shadow: 0 0 20px rgba(255,215,0,0.4);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .overlay button:hover {
+      transform: scale(1.06);
+      box-shadow: 0 0 30px rgba(255,215,0,0.7);
+    }
+    .hidden { display: none !important; }
+
+    /* ── Rules button & overlay ─────────────────────────────────────── */
+    #rules-btn {
+      position: fixed; top: 18px; right: 22px; z-index: 25;
+      width: 38px; height: 38px; border-radius: 50%;
+      background: rgba(255,215,0,0.12); border: 2px solid rgba(255,215,0,0.35);
+      color: #FFD700; font-size: 20px; font-weight: bold;
+      cursor: pointer; transition: background .15s; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #rules-btn:hover { background: rgba(255,215,0,0.28); }
+    #rules-overlay {
+      position: fixed; inset: 0; z-index: 40;
+      background: rgba(15,15,26,.88);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #rules-card {
+      background: rgba(255,255,255,.07);
+      border: 2px solid rgba(255,215,0,.3);
+      border-radius: 24px; padding: 36px 40px;
+      max-width: 440px; text-align: center;
+      display: flex; flex-direction: column; gap: 18px;
+    }
+    #rules-card h2 {
+      color: #FFD700; font-size: 22px; letter-spacing: 3px;
+    }
+    #rules-card p {
+      color: #e2e8f0; font-size: 15px; line-height: 1.8;
+      white-space: pre-line; letter-spacing: .5px;
+    }
+    #rules-close {
+      background: linear-gradient(90deg,#FFD700,#F59E0B);
+      color: #1a1a1a; font-size: 16px; font-weight: bold;
+      border: none; border-radius: 30px; padding: 10px 32px;
+      cursor: pointer; letter-spacing: 1px; align-self: center;
+    }
+    #rules-close:hover { opacity: .88; }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <!-- Rules button -->
+  <button id="rules-btn" onclick="toggleRules()">?</button>
+
+  <!-- Rules overlay -->
+  <div id="rules-overlay" style="display:none">
+    <div id="rules-card">
+      <h2>📖 CÓMO JUGAR</h2>
+      <p>OBSERVA LA ECUACIÓN EN LA PARTE SUPERIOR.
+HAZ CLIC EN EL NENÚFAR QUE TIENE LA RESPUESTA CORRECTA
+PARA QUE LA RANA SALTE. ¡CUIDADO CON EL AGUA!</p>
+      <button id="rules-close" onclick="toggleRules()">✕ CERRAR</button>
+    </div>
+  </div>
+
+  <a class="back-btn" href="index.html">← VOLVER</a>
+  <div id="game-wrap">
+    <canvas id="game" width="800" height="500"></canvas>
+    <!-- Start overlay -->
+    <div class="overlay hidden" id="start-screen" style="display:none">
+      <button id="btn-start" style="display:none">COMENZAR</button>
+    </div>
+    <!-- Game over overlay -->
+    <div class="overlay hidden" id="gameover-screen">
+      <div class="emoji">💦</div>
+      <h1>¡JUEGO TERMINADO!</h1>
+      <div class="score-display" id="final-score">PUNTUACIÓN: 0</div>
+      <div class="score-display" id="best-score" style="font-size:18px;color:#aac4e0"></div>
+      <button id="btn-restart">JUGAR DE NUEVO</button>
+    </div>
+  </div>
+  <div id="controls-bar">HAGA CLIC EN EL NENÚFAR CON LA RESPUESTA CORRECTA</div>
+
+<script>
+// ── Starfield background ──────────────────────────────────────────────────────
+const bgCanvas = document.getElementById('bg');
+const bgCtx = bgCanvas.getContext('2d');
+let stars = [];
+function initBg() {
+  bgCanvas.width = window.innerWidth;
+  bgCanvas.height = window.innerHeight;
+  stars = Array.from({length: 200}, () => ({
+    x: Math.random() * bgCanvas.width,
+    y: Math.random() * bgCanvas.height,
+    r: Math.random() * 1.5 + 0.3,
+    a: Math.random(),
+    s: Math.random() * 0.005 + 0.002
+  }));
+}
+function drawBg() {
+  bgCtx.fillStyle = '#0f0f1a';
+  bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+  stars.forEach(s => {
+    s.a += s.s;
+    const alpha = (Math.sin(s.a) + 1) / 2 * 0.8 + 0.1;
+    bgCtx.beginPath();
+    bgCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    bgCtx.fillStyle = `rgba(255,255,255,${alpha})`;
+    bgCtx.fill();
+  });
+}
+window.addEventListener('resize', initBg);
+initBg();
+
+// ── Audio ─────────────────────────────────────────────────────────────────────
+const ac = new (window.AudioContext || window.webkitAudioContext)();
+function resumeAC() { if (ac.state === 'suspended') ac.resume(); }
+function beep(freq, dur, type = 'sine', vol = 0.25) {
+  if (ac.state === 'suspended') return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.connect(g); g.connect(ac.destination);
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+  o.start(); o.stop(ac.currentTime + dur);
+}
+function sfxJump() {
+  beep(350, 0.06, 'sine', 0.2);
+  setTimeout(() => beep(550, 0.08, 'sine', 0.2), 60);
+}
+function sfxCorrect() {
+  [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'sine', 0.22), i * 80));
+}
+function sfxWrong() {
+  beep(160, 0.35, 'sawtooth', 0.15);
+}
+function sfxSplash() {
+  [400, 300, 200, 120].forEach((f, i) => setTimeout(() => beep(f, 0.08, 'triangle', 0.15), i * 40));
+}
+
+// ── Game canvas ───────────────────────────────────────────────────────────────
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = 800, H = 500;
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const BANK_W = 100;
+const FROG_START_X = 55;
+const FROG_START_Y = 390;
+const HUD_H = 70;
+const WATER_TOP = H * 0.38; // ~190
+const PAD_RADIUS = 30;
+const JUMP_FRAMES = 44;
+const WAVE_COUNT = 8;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let score = 0;
+let level = 1;
+let lives = 3;
+let best = parseInt(localStorage.getItem('frog_best') || '0');
+let gameState = 'playing'; // 'playing' | 'jumping' | 'splash' | 'gameover'
+let question = {};
+let pads = [];
+let particles = [];
+let waveOffset = 0;
+let frog = { x: FROG_START_X, y: FROG_START_Y };
+let jumpAnim = null; // { startX, startY, endX, endY, frame, padIdx, correct }
+let splashAnim = null; // { x, y, frame }
+let padSlideIn = 0; // 0=done, >0=frames remaining for slide-in
+let glowPhase = 0;
+let frogsOnPad = false; // frog sitting on pad after correct
+let frogsOnPadTimer = 0;
+
+// ── Question & pad generation ─────────────────────────────────────────────────
+function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+function maxNum() {
+  // level 1-2: 1-4, level 3-5: 1-6, level 6-9: 1-8, level 10+: 1-9
+  if (level <= 2)  return 4;
+  if (level <= 5)  return 6;
+  if (level <= 9)  return 8;
+  return 9;
+}
+
+function newQuestion() {
+  const mx = maxNum();
+  const a = rand(1, mx), b = rand(1, mx);
+  const sum = a + b;
+  // 0 = unknown sum, 1 = unknown second addend, 2 = unknown first addend
+  const mode = Math.random() < 0.5 ? 0 : (Math.random() < 0.5 ? 1 : 2);
+  question = { a, b, sum, mode, answer: mode === 0 ? sum : (mode === 1 ? b : a) };
+
+  // Build wrong answers — close to correct answer so it's challenging
+  const wrongs = new Set();
+  const maxAnswer = mx * 2;
+  while (wrongs.size < 3) {
+    const w = rand(Math.max(1, question.answer - 4), Math.min(maxAnswer, question.answer + 4));
+    if (w !== question.answer) wrongs.add(w);
+  }
+  const allAnswers = [question.answer, ...wrongs];
+  // Shuffle
+  for (let i = allAnswers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allAnswers[i], allAnswers[j]] = [allAnswers[j], allAnswers[i]];
+  }
+
+  pads = [200, 340, 480, 620].map((bx, i) => ({
+    x: bx + rand(-20, 20),
+    y: rand(240, 380),
+    value: allAnswers[i],
+    isCorrect: allAnswers[i] === question.answer,
+    bobPhase: Math.random() * Math.PI * 2,
+    slideX: 0 // used during slide-in
+  }));
+
+  padSlideIn = 25;
+}
+
+// ── Equation string parts ─────────────────────────────────────────────────────
+function equationParts() {
+  const { a, b, sum, mode } = question;
+  if (mode === 0) return [{ t: `${a} + ${b} = `, gold: false }, { t: '?', gold: true }];
+  if (mode === 1) return [{ t: `${a} + `, gold: false }, { t: '?', gold: true }, { t: ` = ${sum}`, gold: false }];
+  return [{ t: '?', gold: true }, { t: ` + ${b} = ${sum}`, gold: false }];
+}
+
+// ── Draw frog ─────────────────────────────────────────────────────────────────
+function drawFrog(x, y, rotation = 0) {
+  // Draw the same girl character as math-jump, centered on (x,y)
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  // sprite is 36×44; offset so it's centered horizontally, feet at bottom
+  const px = -18, py = -44;
+
+  // Sneakers
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(px+2,  py+39, 13, 5);
+  ctx.fillRect(px+19, py+39, 13, 5);
+  ctx.fillStyle = '#E8E8E8';
+  ctx.fillRect(px+2,  py+42, 13, 2);
+  ctx.fillRect(px+19, py+42, 13, 2);
+  ctx.fillStyle = '#2a2a2a';
+  ctx.fillRect(px+3,  py+40, 5, 2);
+  ctx.fillRect(px+20, py+40, 5, 2);
+
+  // Legs
+  ctx.fillStyle = '#F0C8A0';
+  ctx.fillRect(px+5,  py+35, 9, 6);
+  ctx.fillRect(px+20, py+35, 9, 6);
+
+  // Dark navy pleated skirt
+  ctx.fillStyle = '#111827'; ctx.fillRect(px, py+28, 36, 12);
+  ctx.fillStyle = '#1a2436';
+  for (let sx = px+4; sx < px+34; sx += 5) ctx.fillRect(sx, py+28, 2, 12);
+  ctx.fillStyle = '#1f2d45'; ctx.fillRect(px, py+28, 36, 3);
+
+  // White polo body
+  ctx.fillStyle = '#F5F5F5'; ctx.fillRect(px+4, py+19, 26, 11);
+  ctx.fillStyle = '#E0E0E0';
+  ctx.fillRect(px+4,  py+19, 3, 11);
+  ctx.fillRect(px+27, py+19, 3, 11);
+
+  // Navy collar with yellow trim
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(px+11, py+17, 7, 6);
+  ctx.fillRect(px+18, py+17, 7, 6);
+  ctx.fillStyle = '#F59E0B';
+  ctx.fillRect(px+11, py+17, 7, 2);
+  ctx.fillRect(px+18, py+17, 7, 2);
+  ctx.fillStyle = '#F5F5F5'; ctx.fillRect(px+16, py+18, 4, 5);
+
+  // Two buttons
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(px+17, py+22, 2, 2);
+  ctx.fillRect(px+17, py+26, 2, 2);
+
+  // Chest pocket + badge
+  ctx.fillStyle = '#E8E8E8'; ctx.fillRect(px+7, py+22, 7, 6);
+  ctx.strokeStyle = '#CCC'; ctx.lineWidth = 1; ctx.strokeRect(px+7, py+22, 7, 6);
+  ctx.fillStyle = '#0f172a'; ctx.fillRect(px+8, py+23, 5, 4);
+  ctx.fillStyle = '#F59E0B'; ctx.fillRect(px+9, py+24, 3, 2);
+
+  // Sleeve trim
+  ctx.fillStyle = '#F59E0B';
+  ctx.fillRect(px+4,  py+27, 3, 2);
+  ctx.fillRect(px+27, py+27, 3, 2);
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(px+4,  py+29, 3, 1);
+  ctx.fillRect(px+27, py+29, 3, 1);
+
+  // Neck
+  ctx.fillStyle = '#F0C8A0'; ctx.fillRect(px+14, py+15, 8, 5);
+
+  // Hair pulled back
+  ctx.fillStyle = '#3D2008';
+  ctx.fillRect(px+6,  py,    24, 7);
+  ctx.fillRect(px+4,  py+4,  5,  10);
+  ctx.fillRect(px+27, py+4,  5,  10);
+  ctx.fillRect(px+29, py+8,  6,  8);
+  ctx.fillStyle = '#2a1505'; ctx.fillRect(px+30, py+9, 4, 6);
+
+  // Face
+  ctx.fillStyle = '#F0C8A0'; ctx.fillRect(px+7, py+5, 22, 14);
+  ctx.fillStyle = 'rgba(240,140,140,0.45)';
+  ctx.fillRect(px+7,  py+13, 5, 4);
+  ctx.fillRect(px+24, py+13, 5, 4);
+
+  // White headband
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(px+5, py+4, 26, 4);
+  ctx.fillStyle = '#E5E5E5';
+  ctx.fillRect(px+5, py+4, 26, 1);
+  ctx.fillRect(px+5, py+7, 26, 1);
+
+  // Eyes
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(px+10, py+9, 5, 5);
+  ctx.fillRect(px+21, py+9, 5, 5);
+  ctx.fillStyle = '#5C3317';
+  ctx.fillRect(px+11, py+10, 3, 3);
+  ctx.fillRect(px+22, py+10, 3, 3);
+  ctx.fillStyle = 'white';
+  ctx.fillRect(px+12, py+10, 1, 1);
+  ctx.fillRect(px+23, py+10, 1, 1);
+
+  // Eyebrows
+  ctx.fillStyle = '#3D2008';
+  ctx.fillRect(px+10, py+7, 5, 2);
+  ctx.fillRect(px+21, py+7, 5, 2);
+
+  // Smile
+  ctx.fillStyle = '#C27B5A';
+  ctx.fillRect(px+11, py+15, 14, 2);
+  ctx.fillRect(px+10, py+13,  3,  3);
+  ctx.fillRect(px+23, py+13,  3,  3);
+  ctx.fillStyle = 'white'; ctx.fillRect(px+12, py+15, 12, 2);
+
+  ctx.restore();
+}
+
+// ── Draw lily pad ─────────────────────────────────────────────────────────────
+function drawPad(pad, bobY, isGlowing) {
+  const { x, value } = pad;
+  const y = pad.y + bobY;
+  const px = padSlideIn > 0 ? x + (padSlideIn / 25) * 250 : x;
+
+  ctx.save();
+
+  if (false) { // glow disabled — don't highlight the correct pad
+  }
+
+  // Pad shadow
+  ctx.beginPath();
+  ctx.ellipse(px, y + 5, PAD_RADIUS, PAD_RADIUS * 0.3, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fill();
+
+  // Main pad circle
+  ctx.beginPath();
+  ctx.arc(px, y, PAD_RADIUS, 0, Math.PI * 2);
+  ctx.fillStyle = '#2d8b3a';
+  ctx.fill();
+  ctx.strokeStyle = '#1a5c26';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Inner ring
+  ctx.beginPath();
+  ctx.arc(px, y, PAD_RADIUS - 6, 0, Math.PI * 2);
+  ctx.strokeStyle = '#3da84d';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Notch
+  ctx.beginPath();
+  ctx.moveTo(px, y);
+  ctx.lineTo(px, y - PAD_RADIUS);
+  ctx.strokeStyle = '#1a5c26';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Number
+  ctx.font = 'bold 22px Arial Rounded MT Bold, Arial';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur = 4;
+  ctx.fillText(value, px, y);
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+}
+
+// ── Draw HUD ──────────────────────────────────────────────────────────────────
+function drawHUD() {
+  // Background bar
+  ctx.fillStyle = 'rgba(10,10,26,0.85)';
+  ctx.fillRect(0, 0, W, HUD_H);
+  ctx.strokeStyle = 'rgba(255,215,0,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, HUD_H); ctx.lineTo(W, HUD_H); ctx.stroke();
+
+  // Lives (hearts)
+  ctx.font = '26px serif';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < 3; i++) {
+    ctx.globalAlpha = i < lives ? 1 : 0.25;
+    ctx.fillText('❤️', 20 + i * 34, HUD_H / 2);
+  }
+  ctx.globalAlpha = 1;
+
+  // Equation — bigger font
+  const parts = equationParts();
+  let totalW = 0;
+  ctx.font = 'bold 48px Arial Rounded MT Bold, Arial';
+  parts.forEach(p => { totalW += ctx.measureText(p.t).width; });
+  let cx = W / 2 - totalW / 2;
+  ctx.textBaseline = 'middle';
+  parts.forEach(p => {
+    ctx.font = 'bold 48px Arial Rounded MT Bold, Arial';
+    ctx.fillStyle = p.gold ? '#FFD700' : '#ffffff';
+    if (p.gold) {
+      ctx.shadowColor = 'rgba(255,215,0,0.6)';
+      ctx.shadowBlur = 10;
+    }
+    ctx.fillText(p.t, cx, HUD_H / 2);
+    ctx.shadowBlur = 0;
+    cx += ctx.measureText(p.t).width;
+  });
+
+  // Level (left side, below hearts)
+  ctx.font = 'bold 13px Arial Rounded MT Bold, Arial';
+  ctx.fillStyle = '#64748b';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`NIV.${level}`, 20, HUD_H - 10);
+
+  // Score
+  ctx.font = 'bold 22px Arial Rounded MT Bold, Arial';
+  ctx.fillStyle = '#FFD700';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(255,215,0,0.4)';
+  ctx.shadowBlur = 6;
+  ctx.fillText(`⭐ ${score}`, W - 16, HUD_H / 2);
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+}
+
+// ── Draw river ────────────────────────────────────────────────────────────────
+function drawRiver(t) {
+  // Water gradient
+  const grad = ctx.createLinearGradient(0, WATER_TOP, 0, H);
+  grad.addColorStop(0, '#0e6b8a');
+  grad.addColorStop(0.4, '#0a4f6e');
+  grad.addColorStop(1, '#062e42');
+  ctx.fillStyle = grad;
+  ctx.fillRect(BANK_W, WATER_TOP, W - BANK_W, H - WATER_TOP);
+
+  // Animated wave lines
+  ctx.save();
+  ctx.strokeStyle = 'rgba(100,220,255,0.18)';
+  ctx.lineWidth = 2;
+  for (let wi = 0; wi < WAVE_COUNT; wi++) {
+    const wy = WATER_TOP + 30 + wi * ((H - WATER_TOP - 40) / WAVE_COUNT);
+    ctx.beginPath();
+    for (let wx = BANK_W; wx <= W; wx += 4) {
+      const yx = wy + Math.sin((wx + waveOffset + wi * 40) * 0.04) * 5;
+      if (wx === BANK_W) ctx.moveTo(wx, yx); else ctx.lineTo(wx, yx);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Water shimmer highlights
+  ctx.save();
+  for (let s = 0; s < 6; s++) {
+    const sx = BANK_W + 80 + s * 110 + Math.sin(t * 0.03 + s) * 20;
+    const sy = WATER_TOP + 15 + s * 30 + Math.cos(t * 0.02 + s * 2) * 8;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, 18, 4, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(180,240,255,0.12)';
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ── Draw left bank ────────────────────────────────────────────────────────────
+function drawBank() {
+  // Ground below bank
+  const grad = ctx.createLinearGradient(0, WATER_TOP, 0, H);
+  grad.addColorStop(0, '#2d5a1b');
+  grad.addColorStop(0.3, '#1f3d12');
+  grad.addColorStop(1, '#141f0a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, WATER_TOP, BANK_W + 10, H - WATER_TOP);
+
+  // Bank top edge (slight curve)
+  ctx.beginPath();
+  ctx.moveTo(0, WATER_TOP);
+  ctx.quadraticCurveTo(BANK_W / 2, WATER_TOP - 8, BANK_W + 10, WATER_TOP + 10);
+  ctx.lineTo(BANK_W + 10, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
+  ctx.fillStyle = '#2d5a1b';
+  ctx.fill();
+
+  // Grass tufts
+  ctx.strokeStyle = '#4a8c2a';
+  ctx.lineWidth = 2;
+  for (let g = 0; g < 5; g++) {
+    const gx = 15 + g * 16;
+    const gy = WATER_TOP - 2;
+    ctx.beginPath();
+    ctx.moveTo(gx, gy);
+    ctx.lineTo(gx - 3, gy - 10);
+    ctx.moveTo(gx, gy);
+    ctx.lineTo(gx + 2, gy - 12);
+    ctx.moveTo(gx, gy);
+    ctx.lineTo(gx + 6, gy - 9);
+    ctx.stroke();
+  }
+
+  // Darker soil bottom stripe
+  ctx.fillStyle = '#0f0f1a';
+  ctx.fillRect(0, H - 18, BANK_W + 10, 18);
+}
+
+// ── Particles ─────────────────────────────────────────────────────────────────
+function spawnParticles(x, y, color, count, type) {
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
+    const speed = type === 'star' ? rand(2, 6) : rand(3, 8);
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - (type === 'star' ? 2 : 0),
+      life: 1,
+      decay: type === 'star' ? 0.025 : 0.035,
+      r: type === 'star' ? rand(3, 7) : rand(2, 6),
+      color,
+      type
+    });
+  }
+}
+
+function updateParticles() {
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.2;
+    p.life -= p.decay;
+  });
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life);
+    if (p.type === 'star') {
+      // Draw a small star shape
+      ctx.translate(p.x, p.y);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const a = (Math.PI * 2 / 5) * i - Math.PI / 2;
+        const r = i % 2 === 0 ? p.r : p.r * 0.4;
+        if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+    }
+    ctx.restore();
+  });
+}
+
+// ── Main game loop ────────────────────────────────────────────────────────────
+let t = 0;
+
+function update() {
+  t++;
+  waveOffset -= 1.5;
+  glowPhase += 0.06;
+
+  if (padSlideIn > 0) padSlideIn--;
+
+  if (jumpAnim) {
+    jumpAnim.frame++;
+    const prog = jumpAnim.frame / JUMP_FRAMES;
+    frog.x = jumpAnim.startX + (jumpAnim.endX - jumpAnim.startX) * prog;
+    const arcH = jumpAnim.correct ? 140 : 110;
+    frog.y = jumpAnim.startY + (jumpAnim.endY - jumpAnim.startY) * prog
+             - Math.sin(prog * Math.PI) * arcH;
+
+    if (jumpAnim.frame >= JUMP_FRAMES) {
+      if (jumpAnim.correct) {
+        sfxCorrect();
+        spawnParticles(frog.x, frog.y, '#FFD700', 12, 'star');
+        spawnParticles(frog.x, frog.y, '#fff', 8, 'star');
+        gameState = 'playing';
+        jumpAnim = null;
+        frogsOnPad = true;
+        frogsOnPadTimer = 55;
+        score++;
+        level++;
+        if (score > best) { best = score; localStorage.setItem('frog_best', best); }
+      } else {
+        sfxSplash();
+        spawnParticles(frog.x, frog.y, '#4fc3f7', 14, 'splash');
+        spawnParticles(frog.x, frog.y, '#81d4fa', 10, 'splash');
+        lives--;
+        jumpAnim = null;
+        gameState = 'fallen';   // pause in water before resetting
+        const fallenX = frog.x;
+        const fallenY = frog.y;
+        frog.y = fallenY;       // stay in place (sinking effect handled below)
+        frog.fallenTimer = 0;
+        if (lives <= 0) {
+          setTimeout(() => {
+            frog.x = FROG_START_X; frog.y = FROG_START_Y;
+            gameState = 'gameover';
+            document.getElementById('final-score').textContent = `PUNTUACIÓN: ${score}`;
+            document.getElementById('best-score').textContent = `MEJOR: ${best}`;
+            document.getElementById('gameover-screen').classList.remove('hidden');
+          }, 1500);
+        } else {
+          setTimeout(() => {
+            frog.x = FROG_START_X;
+            frog.y = FROG_START_Y;
+            gameState = 'playing';
+            newQuestion();
+          }, 1500);
+        }
+      }
+    }
+  }
+
+  if (frogsOnPad) {
+    frogsOnPadTimer--;
+    if (frogsOnPadTimer <= 0) {
+      frogsOnPad = false;
+      frog.x = FROG_START_X;
+      frog.y = FROG_START_Y;
+      newQuestion();
+    }
+  }
+
+  updateParticles();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Dark BG
+  ctx.fillStyle = '#0f0f1a';
+  ctx.fillRect(0, 0, W, H);
+
+  drawBank();
+  drawRiver(t);
+
+  // Bob pads and draw
+  pads.forEach(pad => {
+    const bob = Math.sin(t * 0.04 + pad.bobPhase) * 4;
+    drawPad(pad, bob, gameState === 'playing' || frogsOnPad);
+  });
+
+  // Draw frog
+  if (gameState !== 'gameover') {
+    let rotation = 0;
+    let drawY = frog.y;
+    if (jumpAnim) {
+      const prog = jumpAnim.frame / JUMP_FRAMES;
+      rotation = Math.sin(prog * Math.PI) * 0.35 * (jumpAnim.endX > jumpAnim.startX ? 1 : -1);
+    }
+    if (gameState === 'fallen') {
+      frog.fallenTimer = (frog.fallenTimer || 0) + 1;
+      drawY = frog.y + Math.min(frog.fallenTimer * 0.8, 30); // sink slowly
+      rotation = 0.4; // tipped sideways
+    }
+    drawFrog(frog.x, drawY, rotation);
+  }
+
+  drawParticles();
+  drawHUD();
+}
+
+function gameLoop() {
+  drawBg();
+  if (gameState !== 'gameover') {
+    update();
+    draw();
+  }
+  requestAnimationFrame(gameLoop);
+}
+
+// ── Click handler ─────────────────────────────────────────────────────────────
+canvas.addEventListener('click', e => {
+  resumeAC();
+  if (gameState !== 'playing' || frogsOnPad) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width;
+  const scaleY = H / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+
+  pads.forEach((pad, i) => {
+    const px = padSlideIn > 0 ? pad.x + (padSlideIn / 25) * 250 : pad.x;
+    const bob = Math.sin(t * 0.04 + pad.bobPhase) * 4;
+    const py = pad.y + bob;
+    const dist = Math.hypot(mx - px, my - py);
+    if (dist <= PAD_RADIUS + 5) {
+      gameState = 'jumping';
+      sfxJump();
+      jumpAnim = {
+        startX: frog.x,
+        startY: frog.y,
+        endX: px,
+        endY: py - 18,
+        frame: 0,
+        padIdx: i,
+        correct: pad.isCorrect
+      };
+    }
+  });
+});
+
+// ── Start / restart buttons ───────────────────────────────────────────────────
+document.getElementById('btn-start').addEventListener('click', () => {
+  resumeAC();
+  score = 0; lives = 3; level = 1;
+  frog.x = FROG_START_X; frog.y = FROG_START_Y;
+  particles = [];
+  gameState = 'playing';
+  newQuestion();
+  document.getElementById('start-screen').classList.add('hidden');
+});
+document.getElementById('btn-restart').addEventListener('click', () => {
+  resumeAC();
+  score = 0; lives = 3; level = 1;
+  frog.x = FROG_START_X; frog.y = FROG_START_Y;
+  particles = []; jumpAnim = null; frogsOnPad = false;
+  gameState = 'playing';
+  newQuestion();
+  document.getElementById('gameover-screen').classList.add('hidden');
+});
+
+gameLoop();
+
+  function toggleRules() {
+    const o = document.getElementById('rules-overlay');
+    o.style.display = o.style.display === 'none' ? 'flex' : 'none';
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const o = document.getElementById('rules-overlay');
+      if (o) o.style.display = 'none';
+    }
+  });
+
+  // Auto-start
+  window.addEventListener('load', () => {
+    score = 0; lives = 3; level = 1;
+    frog.x = FROG_START_X; frog.y = FROG_START_Y;
+    gameState = 'playing';
+    newQuestion();
+  });
+</script>
+</body>
+</html>

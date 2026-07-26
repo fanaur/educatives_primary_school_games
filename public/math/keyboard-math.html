@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Key Math – Math Games</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f1a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    canvas#bg {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+    }
+
+    #game {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
+
+    /* HUD */
+    #hud {
+      display: flex;
+      gap: 40px;
+      align-items: center;
+    }
+    .hud-box {
+      text-align: center;
+    }
+    .hud-label {
+      color: #64748b;
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .hud-value {
+      color: #FFD700;
+      font-size: 32px;
+      font-weight: bold;
+      text-shadow: 0 0 20px rgba(255,215,0,0.5);
+    }
+    #lives-display { color: #ef4444; font-size: 28px; letter-spacing: 4px; }
+
+    /* Equation card */
+    #equation-card {
+      background: rgba(255,255,255,0.06);
+      border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 28px;
+      padding: 40px 60px;
+      text-align: center;
+      min-width: 380px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    #equation-card.correct {
+      border-color: #22c55e;
+      background: rgba(34,197,94,0.12);
+    }
+    #equation-card.wrong {
+      border-color: #ef4444;
+      background: rgba(239,68,68,0.12);
+    }
+
+    #equation {
+      font-size: 64px;
+      color: #ffffff;
+      letter-spacing: 8px;
+      text-shadow: 0 0 30px rgba(255,255,255,0.2);
+    }
+    #equation .unknown {
+      color: #FFD700;
+      text-shadow: 0 0 20px rgba(255,215,0,0.6);
+    }
+
+    #feedback {
+      margin-top: 14px;
+      font-size: 22px;
+      min-height: 32px;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+    #feedback.correct { color: #22c55e; }
+    #feedback.wrong   { color: #ef4444; }
+
+    /* Answer choices */
+    #choices {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .choice-btn {
+      width: 110px;
+      height: 110px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.07);
+      border: 2px solid rgba(255,255,255,0.18);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: transform 0.1s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    }
+    .choice-btn:hover {
+      transform: translateY(-4px);
+      border-color: #FFD700;
+      background: rgba(255,215,0,0.1);
+      box-shadow: 0 8px 30px rgba(255,215,0,0.2);
+    }
+    .choice-btn .key-hint {
+      font-size: 11px;
+      color: #64748b;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: rgba(255,255,255,0.08);
+      border-radius: 6px;
+      padding: 2px 7px;
+    }
+    .choice-btn .answer-val {
+      font-size: 36px;
+      color: #ffffff;
+      font-weight: bold;
+    }
+    .choice-btn.correct-choice {
+      border-color: #22c55e !important;
+      background: rgba(34,197,94,0.18) !important;
+      box-shadow: 0 0 30px rgba(34,197,94,0.3);
+    }
+    .choice-btn.wrong-choice {
+      border-color: #ef4444 !important;
+      background: rgba(239,68,68,0.15) !important;
+    }
+    .choice-btn.reveal-choice {
+      border-color: #22c55e !important;
+      background: rgba(34,197,94,0.1) !important;
+    }
+    .choice-btn.disabled {
+      pointer-events: none;
+    }
+
+    /* Streak badge */
+    #streak-badge {
+      font-size: 15px;
+      color: #f97316;
+      letter-spacing: 1px;
+      min-height: 24px;
+      font-weight: bold;
+    }
+
+    /* Difficulty label */
+    #diff-label {
+      font-size: 13px;
+      color: #475569;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* Screens */
+    #start-screen, #gameover-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      background: rgba(15,15,26,0.92);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+    }
+    .screen-title {
+      font-size: 52px;
+      color: #FFD700;
+      text-shadow: 0 0 30px rgba(255,215,0,0.5), 3px 3px 0 #b8860b;
+      text-align: center;
+    }
+    .screen-sub {
+      color: #aac4e0;
+      font-size: 17px;
+      text-align: center;
+      max-width: 420px;
+      line-height: 1.7;
+    }
+    .big-btn {
+      background: linear-gradient(90deg, #FFD700, #F59E0B);
+      color: #1a1a1a;
+      font-size: 20px;
+      font-weight: bold;
+      border: none;
+      border-radius: 40px;
+      padding: 14px 48px;
+      cursor: pointer;
+      letter-spacing: 2px;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .big-btn:hover {
+      transform: scale(1.06);
+      box-shadow: 0 6px 28px rgba(255,215,0,0.35);
+    }
+    #final-score {
+      font-size: 28px;
+      color: #ffffff;
+      text-align: center;
+    }
+    #final-score span { color: #FFD700; font-size: 52px; }
+
+    #back-btn {
+      position: fixed;
+      top: 18px; left: 22px;
+      z-index: 20;
+      color: #64748b;
+      text-decoration: none;
+      font-size: 15px;
+      letter-spacing: 1px;
+      transition: color 0.15s;
+    }
+    #back-btn:hover { color: #FFD700; }
+
+    /* Key hint bar */
+    #key-hint-bar {
+      font-size: 13px;
+      color: #334155;
+      letter-spacing: 1px;
+    }
+
+    /* ── Rules button & overlay ─────────────────────────────────────── */
+    #rules-btn {
+      position: fixed; top: 18px; right: 22px; z-index: 25;
+      width: 38px; height: 38px; border-radius: 50%;
+      background: rgba(255,215,0,0.12); border: 2px solid rgba(255,215,0,0.35);
+      color: #FFD700; font-size: 20px; font-weight: bold;
+      cursor: pointer; transition: background .15s; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #rules-btn:hover { background: rgba(255,215,0,0.28); }
+    #rules-overlay {
+      position: fixed; inset: 0; z-index: 40;
+      background: rgba(15,15,26,.88);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #rules-card {
+      background: rgba(255,255,255,.07);
+      border: 2px solid rgba(255,215,0,.3);
+      border-radius: 24px; padding: 36px 40px;
+      max-width: 440px; text-align: center;
+      display: flex; flex-direction: column; gap: 18px;
+    }
+    #rules-card h2 {
+      color: #FFD700; font-size: 22px; letter-spacing: 3px;
+    }
+    #rules-card p {
+      color: #e2e8f0; font-size: 15px; line-height: 1.8;
+      white-space: pre-line; letter-spacing: .5px;
+    }
+    #rules-close {
+      background: linear-gradient(90deg,#FFD700,#F59E0B);
+      color: #1a1a1a; font-size: 16px; font-weight: bold;
+      border: none; border-radius: 30px; padding: 10px 32px;
+      cursor: pointer; letter-spacing: 1px; align-self: center;
+    }
+    #rules-close:hover { opacity: .88; }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <!-- Rules button -->
+  <button id="rules-btn" onclick="toggleRules()">?</button>
+
+  <!-- Rules overlay -->
+  <div id="rules-overlay" style="display:none">
+    <div id="rules-card">
+      <h2>📖 CÓMO JUGAR</h2>
+      <p>PRESIONA LAS TECLAS 1, 2, 3 O 4 PARA ELEGIR LA RESPUESTA CORRECTA.
+¡CADA ACIERTO SUMA PUNTOS Y LAS RACHAS DAN PUNTOS EXTRA!</p>
+      <button id="rules-close" onclick="toggleRules()">✕ CERRAR</button>
+    </div>
+  </div>
+
+
+  <a id="back-btn" href="index.html">← VOLVER</a>
+
+  <!-- Start screen -->
+  <div id="start-screen" style="display:none">
+    <div class="screen-title">⌨️ MATEMÁTICA CON TECLAS</div>
+    <div class="screen-sub">
+      RESUELVE LA ECUACIÓN — PRESIONA LA <strong style="color:#FFD700">TECLA NUMÉRICA</strong>
+      QUE CORRESPONDE A LA RESPUESTA CORRECTA.<br>
+      ¡ACIERTA PARA GANAR PUNTOS. INTENTA LAS VECES QUE QUIERAS!
+    </div>
+    <button class="big-btn" onclick="startGame()">▶ COMENZAR</button>
+  </div>
+
+  <!-- Game over screen -->
+  <div id="gameover-screen" style="display:none">
+    <div class="screen-title">¡FIN DEL JUEGO!</div>
+    <div id="final-score">PUNTAJE: <span id="final-val">0</span></div>
+    <div class="screen-sub" id="go-message"></div>
+    <button class="big-btn" onclick="startGame()">▶ JUGAR DE NUEVO</button>
+    <a href="index.html" style="color:#64748b;font-size:14px;text-decoration:none;margin-top:-10px">← VOLVER A LOS JUEGOS</a>
+  </div>
+
+  <!-- Main game UI -->
+  <div id="game">
+    <div id="hud">
+      <div class="hud-box">
+        <div class="hud-label">PUNTAJE</div>
+        <div class="hud-value" id="score-display">0</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">MEJOR</div>
+        <div class="hud-value" id="best-display">0</div>
+      </div>
+    </div>
+
+    <div id="diff-label">NIVEL 1</div>
+
+    <div id="equation-card">
+      <div id="equation">3 + <span class="unknown">?</span> = 7</div>
+      <div id="feedback"></div>
+    </div>
+
+    <div id="streak-badge"></div>
+
+    <div id="choices"></div>
+
+    <div id="key-hint-bar">PRESIONA 1 · 2 · 3 · 4 PARA RESPONDER</div>
+  </div>
+
+  <script>
+    // ── Audio ─────────────────────────────────────────────────────────────────
+    const AC = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playTone(freq, type, duration, gainVal = 0.3) {
+      const osc  = AC.createOscillator();
+      const gain = AC.createGain();
+      osc.connect(gain);
+      gain.connect(AC.destination);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, AC.currentTime);
+      gain.gain.setValueAtTime(gainVal, AC.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + duration);
+      osc.start(AC.currentTime);
+      osc.stop(AC.currentTime + duration);
+    }
+
+    function soundCorrect() {
+      playTone(523, 'sine', 0.12);
+      setTimeout(() => playTone(659, 'sine', 0.12), 80);
+      setTimeout(() => playTone(784, 'sine', 0.2),  160);
+    }
+
+    function soundStreak() {
+      [523, 659, 784, 1047].forEach((f, i) =>
+        setTimeout(() => playTone(f, 'sine', 0.15, 0.35), i * 70)
+      );
+    }
+
+    function soundWrong() {
+      playTone(220, 'sawtooth', 0.18, 0.25);
+      setTimeout(() => playTone(196, 'sawtooth', 0.2, 0.2), 100);
+    }
+
+    function soundClick() {
+      playTone(440, 'sine', 0.06, 0.15);
+    }
+
+    // Unlock AudioContext on first interaction
+    document.addEventListener('pointerdown', () => AC.resume(), { once: true });
+    document.addEventListener('keydown',     () => AC.resume(), { once: true });
+
+    // ── Starfield background ──────────────────────────────────────────────────
+    const canvas = document.getElementById('bg');
+    const ctx = canvas.getContext('2d');
+    function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const stars = Array.from({ length: 140 }, () => ({
+      x: Math.random(), y: Math.random(),
+      r: 0.5 + Math.random() * 1.5,
+      twinkle: Math.random() * Math.PI * 2,
+      speed: 0.00008 + Math.random() * 0.00015,
+    }));
+    const symbols = ['+','−','=','×','1','2','3','4','5','6','7','8','9'];
+    const floaters = Array.from({ length: 16 }, () => ({
+      text: symbols[Math.floor(Math.random() * symbols.length)],
+      x: Math.random(), y: Math.random(),
+      speed: 0.0001 + Math.random() * 0.0002,
+      size: 14 + Math.random() * 18,
+      alpha: 0.04 + Math.random() * 0.07,
+    }));
+    function drawBg() {
+      const W = canvas.width, H = canvas.height;
+      ctx.fillStyle = '#0f0f1a';
+      ctx.fillRect(0, 0, W, H);
+      for (const s of stars) {
+        s.twinkle += s.speed * 60;
+        ctx.globalAlpha = 0.4 + Math.sin(s.twinkle) * 0.4;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      for (const f of floaters) {
+        f.y -= f.speed;
+        if (f.y < -0.05) f.y = 1.05;
+        ctx.globalAlpha = f.alpha;
+        ctx.fillStyle = '#FFD700';
+        ctx.font = `bold ${f.size}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText(f.text, f.x * W, f.y * H);
+      }
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(drawBg);
+    }
+    drawBg();
+
+    // ── Game state ────────────────────────────────────────────────────────────
+    const KEY_LABELS = ['1', '2', '3', '4'];
+
+    let score, lives, streak, best, level, locked;
+    let correctIndex;
+    let feedbackTimer;
+
+    function loadBest() {
+      return parseInt(localStorage.getItem('keymath_best') || '0', 10);
+    }
+    function saveBest(v) {
+      localStorage.setItem('keymath_best', v);
+    }
+
+    function startGame() {
+      document.getElementById('start-screen').style.display   = 'none';
+      document.getElementById('gameover-screen').style.display = 'none';
+
+      score   = 0;
+      streak  = 0;
+      level   = 1;
+      locked  = false;
+      best    = loadBest();
+
+      updateHUD();
+      nextQuestion();
+    }
+
+    // ── Question generation ───────────────────────────────────────────────────
+    function getRange() {
+      return [1, 9];
+    }
+
+    function rand(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function generateQuestion() {
+      const [min, max] = getRange();
+      const ops = ['+'];
+      const op  = ops[Math.floor(Math.random() * ops.length)];
+
+      let a, b, answer;
+      if (op === '+') {
+        a = rand(min, max);
+        b = rand(min, max);
+        answer = a + b;
+      } else if (op === '-') {
+        b = rand(min, max);
+        a = rand(b, max + b);   // ensure a >= b so answer >= 0
+        answer = a - b;
+      } else {
+        a = rand(1, Math.min(max, 10));
+        b = rand(1, Math.min(max, 10));
+        answer = a * b;
+      }
+
+      // Randomly place the unknown: either "a op ? = c" or "? op b = c"
+      const unknownPos = Math.random() < 0.5 ? 'left' : 'right';
+      let eqText, displayOp;
+      displayOp = op === '×' ? '×' : op;
+
+      let missing;
+      if (unknownPos === 'right') {
+        missing = b;
+        eqText = `${a} ${displayOp} <span class="unknown">?</span> = ${answer}`;
+      } else {
+        missing = a;
+        eqText = `<span class="unknown">?</span> ${displayOp} ${b} = ${answer}`;
+      }
+
+      return { eqText, answer: missing };
+    }
+
+    function generateChoices(answer) {
+      const choices = new Set([answer]);
+      const [min, max] = getRange();
+      const spread = Math.max(4, Math.floor(max / 3));
+
+      while (choices.size < 4) {
+        let distractor = answer + rand(-spread, spread);
+        if (distractor !== answer && distractor >= 0) choices.add(distractor);
+      }
+
+      // Shuffle
+      const arr = Array.from(choices);
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function nextQuestion() {
+      clearTimeout(feedbackTimer);
+      locked = false;
+
+      const { eqText, answer } = generateQuestion();
+      const choices = generateChoices(answer);
+      correctIndex = choices.indexOf(answer);
+
+      document.getElementById('equation').innerHTML = eqText;
+      document.getElementById('feedback').textContent = '';
+      document.getElementById('feedback').className = '';
+
+      const card = document.getElementById('equation-card');
+      card.className = '';
+
+      renderChoices(choices);
+      updateStreakBadge();
+
+      level = 1 + Math.floor(score / 50);
+      document.getElementById('diff-label').textContent =
+        level <= 2 ? 'NIVEL 1 — FÁCIL' :
+        level <= 4 ? 'NIVEL 2 — MEDIO' :
+        level <= 6 ? 'NIVEL 3 — DIFÍCIL' : 'NIVEL 4 — EXPERTO';
+    }
+
+    function renderChoices(choices) {
+      const container = document.getElementById('choices');
+      container.innerHTML = '';
+      choices.forEach((val, i) => {
+        const btn = document.createElement('div');
+        btn.className = 'choice-btn';
+        btn.dataset.index = i;
+        btn.innerHTML = `
+          <div class="key-hint">TECLA ${KEY_LABELS[i]}</div>
+          <div class="answer-val">${val}</div>
+        `;
+        btn.addEventListener('click', () => pick(i));
+        container.appendChild(btn);
+      });
+    }
+
+    // ── Answer handling ───────────────────────────────────────────────────────
+    function pick(index) {
+      if (locked) return;
+      locked = true;
+      soundClick();
+
+      const btns = document.querySelectorAll('.choice-btn');
+      btns.forEach(b => b.classList.add('disabled'));
+
+      const card = document.getElementById('equation-card');
+      const fb   = document.getElementById('feedback');
+
+      if (index === correctIndex) {
+        btns[index].classList.add('correct-choice');
+        card.classList.add('correct');
+        fb.textContent = randomCorrectMsg();
+        fb.className = 'correct';
+
+        streak++;
+        if (streak >= 3) soundStreak(); else soundCorrect();
+        const bonus = streak >= 3 ? 20 : streak >= 2 ? 15 : 10;
+        score += bonus;
+        if (score > best) { best = score; saveBest(best); }
+        updateHUD();
+
+        feedbackTimer = setTimeout(nextQuestion, 900);
+      } else {
+        btns[index].classList.add('wrong-choice');
+        card.classList.add('wrong');
+        fb.textContent = '✗ ¡INTENTA DE NUEVO!';
+        fb.className = 'wrong';
+        soundWrong();
+
+        streak = 0;
+        updateHUD();
+
+        // re-enable all buttons except the one just picked so player can retry
+        feedbackTimer = setTimeout(() => {
+          card.classList.remove('wrong');
+          fb.textContent = '';
+          fb.className = '';
+          btns.forEach((b, i) => {
+            if (i !== index) b.classList.remove('disabled');
+          });
+          locked = false;
+        }, 600);
+      }
+    }
+
+    function randomCorrectMsg() {
+      const msgs = ['✓ ¡CORRECTO!', '✓ ¡MUY BIEN!', '✓ ¡PERFECTO!', '✓ ¡GENIAL!', '✓ ¡INCREÍBLE!'];
+      return msgs[Math.floor(Math.random() * msgs.length)];
+    }
+
+    // ── Keyboard input ────────────────────────────────────────────────────────
+    document.addEventListener('keydown', e => {
+      const idx = KEY_LABELS.indexOf(e.key);
+      if (idx !== -1) pick(idx);
+    });
+
+    // ── HUD ───────────────────────────────────────────────────────────────────
+    function updateHUD() {
+      document.getElementById('score-display').textContent = score;
+      document.getElementById('best-display').textContent  = best;
+    }
+
+    function updateStreakBadge() {
+      const el = document.getElementById('streak-badge');
+      if (streak >= 5)      el.textContent = `🔥 ${streak}x ¡RACHA!`;
+      else if (streak >= 3) el.textContent = `🔥 ${streak}x RACHA`;
+      else                  el.textContent = '';
+    }
+
+    // ── Game over ─────────────────────────────────────────────────────────────
+    function gameOver() {
+      document.getElementById('gameover-screen').style.display = 'flex';
+      document.getElementById('final-val').textContent = score;
+
+      let msg = '';
+      if (score >= 200) msg = '¡GENIO DE LAS MATEMÁTICAS! 🏆';
+      else if (score >= 100) msg = '¡MUY BIEN! ¡SIGUE PRACTICANDO! ⭐';
+      else if (score >= 50)  msg = '¡BUEN ESFUERZO! ¡INTÉNTALO DE NUEVO! 💪';
+      else                   msg = '¡SIGUE PRACTICANDO, LO LOGRARÁS! 📚';
+      document.getElementById('go-message').textContent = msg;
+    }
+  
+  function toggleRules() {
+    const o = document.getElementById('rules-overlay');
+    o.style.display = o.style.display === 'none' ? 'flex' : 'none';
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const o = document.getElementById('rules-overlay');
+      if (o) o.style.display = 'none';
+    }
+  });
+
+  // Auto-start
+  window.addEventListener('load', () => startGame());
+</script>
+</body>
+</html>

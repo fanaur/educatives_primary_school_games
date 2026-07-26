@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Ábaco Matemático</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f1a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    canvas#bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+
+    #back-btn {
+      position: fixed; top: 18px; left: 22px; z-index: 20;
+      color: #64748b; text-decoration: none; font-size: 15px;
+      letter-spacing: 1px; transition: color .15s;
+    }
+    #back-btn:hover { color: #FFD700; }
+
+    /* ── HUD ────────────────────────────────────────────────────────────── */
+    #hud {
+      position: relative; z-index: 1;
+      display: flex; gap: 48px; align-items: center; margin-bottom: 24px;
+    }
+    .hud-box { text-align: center; }
+    .hud-label { color: #64748b; font-size: 12px; letter-spacing: 2px; }
+    .hud-value { color: #FFD700; font-size: 30px; font-weight: bold;
+      text-shadow: 0 0 18px rgba(255,215,0,.5); }
+    #lives-display { font-size: 26px; letter-spacing: 3px; }
+
+    /* ── Equation ───────────────────────────────────────────────────────── */
+    #equation-display {
+      position: relative; z-index: 1;
+      font-size: 52px; color: #fff; letter-spacing: 10px; font-weight: bold;
+      text-shadow: 0 0 28px rgba(255,255,255,.2);
+      margin-bottom: 20px; text-align: center;
+    }
+    #equation-display .q { color: #FFD700;
+      text-shadow: 0 0 20px rgba(255,215,0,.6); }
+
+    /* ── Abacus frame ───────────────────────────────────────────────────── */
+    #abacus-wrap {
+      position: relative; z-index: 1;
+      background: linear-gradient(160deg, #7c4a1a 0%, #5a3210 40%, #7c4a1a 100%);
+      border: 6px solid #3b1a06;
+      border-radius: 20px;
+      padding: 22px 28px;
+      box-shadow: 0 10px 40px rgba(0,0,0,.6),
+                  inset 0 2px 6px rgba(255,200,100,.15);
+      min-width: 520px;
+    }
+
+    /* top & bottom bars */
+    #abacus-wrap::before, #abacus-wrap::after {
+      content: ''; display: block; height: 12px;
+      background: linear-gradient(180deg, #3b1a06, #5a3210, #3b1a06);
+      border-radius: 4px; margin: -4px -10px;
+    }
+    #abacus-wrap::before { margin-bottom: 16px; }
+    #abacus-wrap::after  { margin-top: 16px; }
+
+    .rod-row {
+      display: flex; align-items: center; margin: 10px 0; gap: 10px;
+    }
+    .rod-label {
+      width: 110px; text-align: right;
+      color: #fde68a; font-size: 11px; letter-spacing: 1px;
+      text-transform: uppercase; flex-shrink: 0;
+    }
+    .rod {
+      flex: 1; height: 48px; position: relative;
+      display: flex; align-items: center; gap: 4px;
+    }
+    /* the metal rod bar */
+    .rod::before {
+      content: ''; position: absolute; left: -4px; right: -4px;
+      top: 50%; height: 5px;
+      background: linear-gradient(180deg, #aaa 0%, #555 50%, #aaa 100%);
+      transform: translateY(-50%); border-radius: 3px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.4);
+    }
+
+    .bead {
+      width: 38px; height: 38px; border-radius: 50%;
+      position: relative; z-index: 1; flex-shrink: 0;
+      transition: transform .12s, box-shadow .12s, opacity .12s;
+    }
+
+    /* Row A — red */
+    .bead.red-on {
+      background: radial-gradient(circle at 35% 30%, #ff9999, #cc0000);
+      box-shadow: 0 3px 8px rgba(200,0,0,.5), inset 0 1px 2px rgba(255,255,255,.3);
+    }
+    .bead.red-off {
+      background: radial-gradient(circle at 35% 30%, #886666, #4a2222);
+      opacity: .35;
+    }
+
+    /* Row B — blue */
+    .bead.blue-on {
+      background: radial-gradient(circle at 35% 30%, #90c8ff, #1a6bbf);
+      box-shadow: 0 3px 8px rgba(30,100,200,.5), inset 0 1px 2px rgba(255,255,255,.3);
+    }
+    .bead.blue-off {
+      background: radial-gradient(circle at 35% 30%, #556688, #223344);
+      opacity: .35;
+    }
+
+    /* Divider inside abacus */
+    .abacus-divider {
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #fde68a88, transparent);
+      margin: 8px 0;
+      border-radius: 2px;
+    }
+
+    /* Answer row — green, interactive */
+    .bead.green-on {
+      background: radial-gradient(circle at 35% 30%, #86efac, #16a34a);
+      box-shadow: 0 3px 8px rgba(22,163,74,.5), inset 0 1px 2px rgba(255,255,255,.3);
+      cursor: pointer;
+    }
+    .bead.green-on:hover  { transform: scale(1.18); }
+    .bead.green-off {
+      background: radial-gradient(circle at 35% 30%, #557766, #223322);
+      opacity: .35; cursor: pointer;
+    }
+    .bead.green-off:hover { transform: scale(1.12); opacity: .6; }
+
+    /* ── Answer counter & controls ─────────────────────────────────────── */
+    #answer-row-controls {
+      position: relative; z-index: 1;
+      display: flex; align-items: center; gap: 20px;
+      margin-top: 22px; justify-content: center;
+    }
+    .ctrl-btn {
+      width: 64px; height: 64px; border-radius: 50%; border: none;
+      font-size: 32px; font-weight: bold; cursor: pointer;
+      transition: transform .1s, box-shadow .1s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #btn-minus {
+      background: linear-gradient(135deg, #ef4444, #b91c1c);
+      color: white; box-shadow: 0 4px 16px rgba(239,68,68,.4);
+    }
+    #btn-plus {
+      background: linear-gradient(135deg, #22c55e, #15803d);
+      color: white; box-shadow: 0 4px 16px rgba(34,197,94,.4);
+    }
+    .ctrl-btn:hover { transform: scale(1.1); }
+    .ctrl-btn:active { transform: scale(.95); }
+
+    #answer-count-box {
+      width: 90px; height: 90px; border-radius: 18px;
+      background: rgba(255,255,255,.08);
+      border: 3px solid rgba(255,255,255,.2);
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 2px;
+    }
+    #answer-count {
+      font-size: 44px; font-weight: bold; color: #4ade80;
+      text-shadow: 0 0 16px rgba(74,222,128,.5);
+      line-height: 1;
+    }
+    #answer-hint { font-size: 10px; color: #64748b; letter-spacing: 1px; }
+
+    #btn-confirm {
+      position: relative; z-index: 1;
+      background: linear-gradient(90deg, #FFD700, #F59E0B);
+      color: #1a1a1a; font-size: 18px; font-weight: bold;
+      border: none; border-radius: 40px; padding: 14px 48px;
+      cursor: pointer; letter-spacing: 2px; margin-top: 18px;
+      transition: transform .1s, box-shadow .1s;
+    }
+    #btn-confirm:hover { transform: scale(1.06);
+      box-shadow: 0 6px 28px rgba(255,215,0,.35); }
+
+    /* ── Feedback ──────────────────────────────────────────────────────── */
+    #feedback {
+      position: relative; z-index: 1;
+      min-height: 32px; font-size: 22px; font-weight: bold;
+      letter-spacing: 2px; text-align: center; margin-top: 10px;
+    }
+    #feedback.correct { color: #22c55e; }
+    #feedback.wrong   { color: #ef4444; }
+
+    /* ── Screens ───────────────────────────────────────────────────────── */
+    #start-screen, #gameover-screen {
+      position: fixed; inset: 0; z-index: 10;
+      background: rgba(15,15,26,.92);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 26px;
+    }
+    .screen-title {
+      font-size: 50px; color: #FFD700;
+      text-shadow: 0 0 30px rgba(255,215,0,.5), 3px 3px 0 #b8860b;
+      text-align: center;
+    }
+    .screen-sub {
+      color: #aac4e0; font-size: 16px; text-align: center;
+      max-width: 400px; line-height: 1.8;
+    }
+    .big-btn {
+      background: linear-gradient(90deg,#FFD700,#F59E0B);
+      color: #1a1a1a; font-size: 20px; font-weight: bold;
+      border: none; border-radius: 40px; padding: 14px 48px;
+      cursor: pointer; letter-spacing: 2px;
+      transition: transform .1s, box-shadow .1s;
+    }
+    .big-btn:hover { transform: scale(1.06);
+      box-shadow: 0 6px 28px rgba(255,215,0,.35); }
+    #final-score { font-size: 28px; color: #fff; text-align: center; }
+    #final-score span { color: #FFD700; font-size: 52px; }
+
+    /* ── Rules button & overlay ─────────────────────────────────────── */
+    #rules-btn {
+      position: fixed; top: 18px; right: 22px; z-index: 25;
+      width: 38px; height: 38px; border-radius: 50%;
+      background: rgba(255,215,0,0.12); border: 2px solid rgba(255,215,0,0.35);
+      color: #FFD700; font-size: 20px; font-weight: bold;
+      cursor: pointer; transition: background .15s; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #rules-btn:hover { background: rgba(255,215,0,0.28); }
+    #rules-overlay {
+      position: fixed; inset: 0; z-index: 40;
+      background: rgba(15,15,26,.88);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #rules-card {
+      background: rgba(255,255,255,.07);
+      border: 2px solid rgba(255,215,0,.3);
+      border-radius: 24px; padding: 36px 40px;
+      max-width: 440px; text-align: center;
+      display: flex; flex-direction: column; gap: 18px;
+    }
+    #rules-card h2 {
+      color: #FFD700; font-size: 22px; letter-spacing: 3px;
+    }
+    #rules-card p {
+      color: #e2e8f0; font-size: 15px; line-height: 1.8;
+      white-space: pre-line; letter-spacing: .5px;
+    }
+    #rules-close {
+      background: linear-gradient(90deg,#FFD700,#F59E0B);
+      color: #1a1a1a; font-size: 16px; font-weight: bold;
+      border: none; border-radius: 30px; padding: 10px 32px;
+      cursor: pointer; letter-spacing: 1px; align-self: center;
+    }
+    #rules-close:hover { opacity: .88; }
+  </style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+  <!-- Rules button -->
+  <button id="rules-btn" onclick="toggleRules()">?</button>
+
+  <!-- Rules overlay -->
+  <div id="rules-overlay" style="display:none">
+    <div id="rules-card">
+      <h2>📖 CÓMO JUGAR</h2>
+      <p>USA LOS BOTONES + Y − (O LAS FLECHAS ↑↓) PARA AJUSTAR
+LA CANTIDAD DE BOLITAS EN EL ÁBACO.
+PRESIONA CONFIRMAR O ENTER CUANDO ESTÉS LISTO.</p>
+      <button id="rules-close" onclick="toggleRules()">✕ CERRAR</button>
+    </div>
+  </div>
+
+<a id="back-btn" href="index.html">← VOLVER</a>
+
+<!-- Start screen -->
+<div id="start-screen" style="display:none">
+  <div class="screen-title">🧮 ÁBACO MATEMÁTICO</div>
+  <div class="screen-sub">
+    USA EL ÁBACO PARA CONTAR LAS BOLITAS Y ENCONTRAR LA RESPUESTA.<br>
+    PRESIONA <strong style="color:#FFD700">+</strong> Y <strong style="color:#FFD700">−</strong>
+    PARA AJUSTAR TU RESPUESTA Y LUEGO <strong style="color:#FFD700">CONFIRMAR</strong>.
+  </div>
+  <button class="big-btn" onclick="startGame()">▶ COMENZAR</button>
+</div>
+
+<!-- Game over screen -->
+<div id="gameover-screen" style="display:none">
+  <div class="screen-title">¡FIN DEL JUEGO!</div>
+  <div id="final-score">PUNTAJE: <span id="final-val">0</span></div>
+  <button class="big-btn" onclick="startGame()">▶ JUGAR DE NUEVO</button>
+  <a href="index.html" style="color:#64748b;font-size:14px;text-decoration:none;margin-top:-10px">← VOLVER AL MENÚ</a>
+</div>
+
+<!-- Game UI -->
+<div id="hud">
+  <div class="hud-box">
+    <div class="hud-label">PUNTAJE</div>
+    <div class="hud-value" id="score-val">0</div>
+  </div>
+  <div class="hud-box">
+    <div class="hud-label">VIDAS</div>
+    <div id="lives-display">❤️❤️❤️</div>
+  </div>
+  <div class="hud-box">
+    <div class="hud-label">MEJOR</div>
+    <div class="hud-value" id="best-val">0</div>
+  </div>
+</div>
+
+<div id="equation-display">
+  <span id="eq-a">3</span>
+  <span style="color:#aac4e0"> + </span>
+  <span id="eq-b">4</span>
+  <span style="color:#aac4e0"> = </span>
+  <span class="q">?</span>
+</div>
+
+<!-- Abacus -->
+<div id="abacus-wrap">
+  <!-- Row A -->
+  <div class="rod-row">
+    <div class="rod-label">PRIMER<br>NÚMERO</div>
+    <div class="rod" id="rod-a"></div>
+  </div>
+  <!-- Row B -->
+  <div class="rod-row">
+    <div class="rod-label">SEGUNDO<br>NÚMERO</div>
+    <div class="rod" id="rod-b"></div>
+  </div>
+
+  <div class="abacus-divider"></div>
+
+  <!-- Answer row -->
+  <div class="rod-row">
+    <div class="rod-label">TU<br>RESPUESTA</div>
+    <div class="rod" id="rod-ans"></div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div id="answer-row-controls">
+  <button class="ctrl-btn" id="btn-minus" onclick="adjustAnswer(-1)">−</button>
+  <div id="answer-count-box">
+    <div id="answer-count">0</div>
+    <div id="answer-hint">BOLITAS</div>
+  </div>
+  <button class="ctrl-btn" id="btn-plus"  onclick="adjustAnswer(1)">+</button>
+</div>
+
+<button id="btn-confirm" onclick="confirmAnswer()">✓ CONFIRMAR</button>
+
+<div id="feedback"></div>
+
+<script>
+// ── Starfield background ──────────────────────────────────────────────────────
+const canvas = document.getElementById('bg');
+const ctx    = canvas.getContext('2d');
+function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+resize(); window.addEventListener('resize', resize);
+const stars = Array.from({length:140}, () => ({
+  x:Math.random(), y:Math.random(), r:.5+Math.random()*1.5,
+  twinkle:Math.random()*Math.PI*2, speed:.00008+Math.random()*.00015,
+}));
+const floaters = Array.from({length:14}, () => ({
+  text: ['+','=','1','2','3','4','5','6','7','8','9'][Math.floor(Math.random()*11)],
+  x:Math.random(), y:Math.random(), speed:.0001+Math.random()*.0002,
+  size:14+Math.random()*18, alpha:.04+Math.random()*.07,
+}));
+function drawBg() {
+  const W=canvas.width, H=canvas.height;
+  ctx.fillStyle='#0f0f1a'; ctx.fillRect(0,0,W,H);
+  for(const s of stars){
+    s.twinkle+=s.speed*60;
+    ctx.globalAlpha=.4+Math.sin(s.twinkle)*.4;
+    ctx.fillStyle='#fff'; ctx.beginPath();
+    ctx.arc(s.x*W,s.y*H,s.r,0,Math.PI*2); ctx.fill();
+  }
+  for(const f of floaters){
+    f.y-=f.speed; if(f.y<-.05) f.y=1.05;
+    ctx.globalAlpha=f.alpha; ctx.fillStyle='#FFD700';
+    ctx.font=`bold ${f.size}px Arial`; ctx.textAlign='center';
+    ctx.fillText(f.text, f.x*W, f.y*H);
+  }
+  ctx.globalAlpha=1; requestAnimationFrame(drawBg);
+}
+drawBg();
+
+// ── Audio ─────────────────────────────────────────────────────────────────────
+const AC = new (window.AudioContext||window.webkitAudioContext)();
+function tone(freq,type,dur,vol=.28){
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.connect(g); g.connect(AC.destination);
+  o.type=type; o.frequency.value=freq;
+  g.gain.setValueAtTime(vol,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+dur);
+  o.start(); o.stop(AC.currentTime+dur);
+}
+function sfxClick()   { tone(440,'sine',.06,.12); }
+function sfxCorrect() { [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,'sine',.15),i*70)); }
+function sfxWrong()   { tone(200,'sawtooth',.2,.2); setTimeout(()=>tone(180,'sawtooth',.2,.18),110); }
+document.addEventListener('pointerdown',()=>AC.resume(),{once:true});
+document.addEventListener('keydown',   ()=>AC.resume(),{once:true});
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let score=0, best=parseInt(localStorage.getItem('abacus_best')||'0',10);
+let lives=3, a=0, b=0, playerAnswer=0, locked=false;
+
+function saveBest(v){ localStorage.setItem('abacus_best',v); }
+
+function startGame(){
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('gameover-screen').style.display='none';
+  score=0; lives=3; locked=false;
+  best=parseInt(localStorage.getItem('abacus_best')||'0',10);
+  updateHUD();
+  newQuestion();
+}
+
+// ── Question ──────────────────────────────────────────────────────────────────
+function rand(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+
+function newQuestion(){
+  locked=false;
+  a=rand(1,9); b=rand(1,9); playerAnswer=0;
+  document.getElementById('eq-a').textContent=a;
+  document.getElementById('eq-b').textContent=b;
+  document.getElementById('feedback').textContent='';
+  document.getElementById('feedback').className='';
+  renderRows();
+  updateHUD();
+}
+
+// ── Render abacus rows ────────────────────────────────────────────────────────
+const MAX_BEADS = 9; // max per display row
+
+function renderRows(){
+  renderFixed('rod-a', a, 'red');
+  renderFixed('rod-b', b, 'blue');
+  renderAnswer();
+}
+
+function renderFixed(id, count, color){
+  const rod=document.getElementById(id);
+  rod.innerHTML='';
+  for(let i=0;i<MAX_BEADS;i++){
+    const d=document.createElement('div');
+    d.className=`bead ${i<count ? color+'-on' : color+'-off'}`;
+    rod.appendChild(d);
+  }
+}
+
+function renderAnswer(){
+  const rod=document.getElementById('rod-ans');
+  rod.innerHTML='';
+  const maxAns=18;
+  for(let i=0;i<maxAns;i++){
+    const d=document.createElement('div');
+    d.className=`bead ${i<playerAnswer ? 'green-on' : 'green-off'}`;
+    // click: activate next or deactivate last
+    const idx=i;
+    d.addEventListener('click',()=>{
+      if(locked) return;
+      AC.resume();
+      if(idx===playerAnswer && playerAnswer<maxAns){
+        playerAnswer++; sfxClick();
+      } else if(idx===playerAnswer-1 && playerAnswer>0){
+        playerAnswer--; sfxClick();
+      }
+      renderAnswer();
+      document.getElementById('answer-count').textContent=playerAnswer;
+    });
+    rod.appendChild(d);
+  }
+  document.getElementById('answer-count').textContent=playerAnswer;
+}
+
+// ── +/- controls ──────────────────────────────────────────────────────────────
+function adjustAnswer(delta){
+  if(locked) return;
+  AC.resume(); sfxClick();
+  playerAnswer=Math.max(0,Math.min(18,playerAnswer+delta));
+  renderAnswer();
+}
+
+// ── Keyboard ──────────────────────────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowUp'   || e.key==='+') adjustAnswer(1);
+  if(e.key==='ArrowDown' || e.key==='-') adjustAnswer(-1);
+  if(e.key==='Enter')                    confirmAnswer();
+});
+
+// ── Confirm ───────────────────────────────────────────────────────────────────
+function confirmAnswer(){
+  if(locked) return;
+  locked=true;
+  AC.resume();
+  const fb=document.getElementById('feedback');
+  if(playerAnswer===a+b){
+    sfxCorrect();
+    fb.textContent='✓ ¡CORRECTO!'; fb.className='correct';
+    score+=10;
+    if(score>best){ best=score; saveBest(best); }
+    updateHUD();
+    setTimeout(newQuestion, 1100);
+  } else {
+    sfxWrong();
+    fb.textContent=`✗ LA RESPUESTA ERA ${a+b}. ¡INTÉNTALO DE NUEVO!`;
+    fb.className='wrong';
+    lives--;
+    updateHUD();
+    if(lives<=0){
+      setTimeout(gameOver,1200);
+    } else {
+      setTimeout(()=>{
+        locked=false;
+        fb.textContent=''; fb.className='';
+        playerAnswer=0; renderAnswer();
+      },1400);
+    }
+  }
+}
+
+// ── HUD ───────────────────────────────────────────────────────────────────────
+function updateHUD(){
+  document.getElementById('score-val').textContent=score;
+  document.getElementById('best-val').textContent=best;
+  const h='❤️'.repeat(lives)+'🖤'.repeat(Math.max(0,3-lives));
+  document.getElementById('lives-display').textContent=h;
+}
+
+// ── Game over ──────────────────────────────────────────────────────────────────
+function gameOver(){
+  document.getElementById('gameover-screen').style.display='flex';
+  document.getElementById('final-val').textContent=score;
+}
+
+  function toggleRules() {
+    const o = document.getElementById('rules-overlay');
+    o.style.display = o.style.display === 'none' ? 'flex' : 'none';
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const o = document.getElementById('rules-overlay');
+      if (o) o.style.display = 'none';
+    }
+  });
+
+  // Auto-start
+  window.addEventListener('load', () => startGame());
+</script>
+</body>
+</html>
