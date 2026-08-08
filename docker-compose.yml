@@ -1,0 +1,8 @@
+services:
+  games:
+    build: .
+    image: educatives-primary-school-games
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000

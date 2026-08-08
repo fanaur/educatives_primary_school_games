@@ -15,6 +15,23 @@ Esto levanta un servidor local en `http://localhost:3000` (también accesible de
 PORT=8080 node server.js
 ```
 
+### Con Docker
+
+También podés correrlo en un contenedor, sin instalar Node localmente:
+
+```bash
+docker build -t educatives-primary-school-games .
+docker run -p 3000:3000 educatives-primary-school-games
+```
+
+O con Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+Esto levanta el servidor en `http://localhost:3000` igual que corriéndolo nativo. Para usar otro puerto en el host: `docker run -p 8080:3000 educatives-primary-school-games`.
+
 ## Juegos disponibles
 
 ### 🔢 Matemáticas
