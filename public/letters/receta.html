@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>La Receta – Juegos de Letras</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background:#0f0f1a;
+      min-height:100vh;
+      display:flex; flex-direction:column; align-items:center;
+      font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y:auto; overflow-x:hidden;
+      user-select:none;
+    }
+
+    canvas#bg { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+    .confetti-layer { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:50; }
+
+    #game {
+      position:relative; z-index:1;
+      display:flex; flex-direction:column;
+      align-items:center; gap:14px;
+      padding:16px 16px 30px;
+      width:100%; max-width:640px;
+    }
+
+    /* ── Top bar ── */
+    #topbar { display:flex; align-items:center; gap:14px; width:100%; }
+    .home-btn {
+      text-decoration:none;
+      background:rgba(255,255,255,0.08);
+      border:2px solid rgba(255,255,255,0.15);
+      border-radius:50%; width:40px; height:40px;
+      display:flex; align-items:center; justify-content:center; font-size:1.2rem;
+      transition:border-color .15s, background .15s;
+    }
+    .home-btn:hover { border-color:#FFD700; background:rgba(255,215,0,.1); }
+    .page-title {
+      color:#FFD700; font-size:19px;
+      text-shadow:0 0 20px rgba(255,215,0,.4), 2px 2px 0 #b8860b;
+      letter-spacing:1px;
+    }
+
+    /* ── HUD ── */
+    #hud { display:flex; gap:26px; align-items:center; }
+    .hud-box { text-align:center; }
+    .hud-label { color:#64748b; font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+    .hud-value { color:#FFD700; font-size:24px; font-weight:bold; text-shadow:0 0 14px rgba(255,215,0,.4); }
+
+    #level-badge {
+      background:rgba(255,215,0,.1); border:2px solid rgba(255,215,0,.3);
+      color:#FFD700; font-size:12px; letter-spacing:2px;
+      padding:4px 16px; border-radius:20px;
+    }
+
+    /* ── Recipe card ── */
+    #recipe-card {
+      width:100%;
+      background:rgba(255,255,255,.05);
+      border:2px solid rgba(255,255,255,.1);
+      border-radius:26px;
+      padding:20px 20px;
+      display:flex; flex-direction:column;
+      align-items:center; gap:12px;
+      transition:border-color .3s, box-shadow .3s;
+    }
+    #recipe-card.correct { border-color:#22c55e; box-shadow:0 0 40px rgba(34,197,94,.3); }
+    #recipe-card.wrong   { border-color:#ef4444; box-shadow:0 0 40px rgba(239,68,68,.25); }
+
+    #dish-emoji { font-size:3rem; }
+    #dish-name  { color:#FFD700; font-size:20px; font-weight:bold; letter-spacing:1px; text-align:center; }
+
+    #ingredient-list {
+      display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
+      max-width:480px;
+    }
+    .ing-word {
+      background:rgba(255,255,255,.06);
+      border:2px solid rgba(255,255,255,.15);
+      border-radius:14px;
+      padding:6px 14px;
+      color:#e2e8f0; font-size:15px; font-weight:bold;
+      letter-spacing:.5px;
+      transition:border-color .2s, background .2s, color .2s;
+    }
+    .ing-word.done { border-color:#22c55e; background:rgba(34,197,94,.15); color:#22c55e; }
+    /* Mix upper/lower case across ingredient words so kids practice reading both */
+    .ing-word.upper-case { text-transform:uppercase; }
+    .ing-word.lower-case { text-transform:lowercase; }
+
+    /* ── Basket ── */
+    #basket-wrap {
+      display:flex; flex-direction:column; align-items:center; gap:6px;
+    }
+    #basket {
+      display:flex; align-items:center; justify-content:center; gap:6px;
+      flex-wrap:wrap;
+      min-width:220px; min-height:64px;
+      background:rgba(255,255,255,.04);
+      border:3px dashed rgba(255,255,255,.2);
+      border-radius:20px;
+      padding:10px 16px;
+      font-size:2rem;
+      transition:border-color .2s, background .2s;
+    }
+    #basket.full { border-style:solid; border-color:#FFD700; background:rgba(255,215,0,.08); }
+    #basket-label { font-size:11px; color:#64748b; letter-spacing:2px; text-transform:uppercase; }
+
+    /* ── Ingredient pool ── */
+    #pool {
+      display:grid; grid-template-columns:repeat(auto-fill, 62px); gap:10px;
+      justify-content:center;
+      width:100%;
+    }
+    .pool-tile {
+      width:62px; height:62px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:2.2rem;
+      background:rgba(255,255,255,.05);
+      border:2px solid rgba(255,255,255,.14);
+      border-radius:16px;
+      cursor:pointer;
+      transition:transform .12s, border-color .12s, opacity .15s;
+    }
+    .pool-tile:hover { transform:scale(1.08) translateY(-2px); border-color:#FFD700; }
+    .pool-tile.used { opacity:0; pointer-events:none; transform:scale(.4); }
+    .pool-tile.wrong { border-color:#ef4444; animation:shake .4s ease; }
+    @keyframes shake {
+      0%,100%{ transform:translateX(0); }
+      20%{ transform:translateX(-8px); }
+      40%{ transform:translateX(8px); }
+      60%{ transform:translateX(-5px); }
+      80%{ transform:translateX(5px); }
+    }
+
+    /* ── Message ── */
+    #message {
+      font-size:16px; font-weight:bold; letter-spacing:1px;
+      min-height:24px; text-align:center; color:#e2e8f0;
+    }
+    #message.correct { color:#22c55e; text-shadow:0 0 12px rgba(34,197,94,.5); }
+    #message.wrong   { color:#ef4444; text-shadow:0 0 12px rgba(239,68,68,.5); }
+
+    /* ── Next button ── */
+    #next-btn {
+      display:none; padding:12px 40px;
+      font-size:1.1rem; font-family:inherit; font-weight:bold; color:#1a1a1a;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      border:none; border-radius:50px; cursor:pointer;
+      box-shadow:0 5px 22px rgba(255,215,0,.4); transition:transform .12s;
+    }
+    #next-btn:hover { transform:scale(1.07); }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas id="confetti-canvas" class="confetti-layer"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html">🏠</a>
+      <span class="page-title">🍳 LA RECETA</span>
+    </div>
+
+    <div id="hud">
+      <div class="hud-box">
+        <div class="hud-label">Puntos</div>
+        <div class="hud-value" id="score">0</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">Racha</div>
+        <div class="hud-value" id="streak">🔥 0</div>
+      </div>
+    </div>
+
+    <div id="level-badge">NIVEL 1 — 3 INGREDIENTES</div>
+
+    <div id="recipe-card">
+      <div id="dish-emoji">🍽️</div>
+      <div id="dish-name">...</div>
+      <div id="ingredient-list"></div>
+
+      <div id="basket-wrap">
+        <div id="basket-label">Canasta <span id="basket-count">0/0</span></div>
+        <div id="basket">🧺</div>
+      </div>
+
+      <div id="message">LEE LA RECETA Y BUSCA LOS INGREDIENTES</div>
+    </div>
+
+    <div id="pool"></div>
+
+    <button id="next-btn" onclick="nextRecipe()">SIGUIENTE RECETA ➡️</button>
+  </div>
+
+  <script>
+    /* ── Starfield background ── */
+    const bgC=document.getElementById('bg'),bgX=bgC.getContext('2d');
+    function rbg(){bgC.width=innerWidth;bgC.height=innerHeight;}
+    rbg();window.addEventListener('resize',rbg);
+    const stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*1.5,sp:.00008+Math.random()*.00015,tw:Math.random()*Math.PI*2}));
+    const bgF=['🍳','🥕','🍅','🧺','📖','🍞'].map(c=>({t:c,x:Math.random(),y:Math.random(),sp:.0001+Math.random()*.0002,sz:13+Math.random()*16,a:.04+Math.random()*.07}));
+    function drawBg(){const W=bgC.width,H=bgC.height;bgX.fillStyle='#0f0f1a';bgX.fillRect(0,0,W,H);for(const s of stars){s.tw+=s.sp*60;bgX.globalAlpha=.4+Math.sin(s.tw)*.4;bgX.fillStyle='#fff';bgX.beginPath();bgX.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);bgX.fill();}for(const f of bgF){f.y-=f.sp;if(f.y<-.05)f.y=1.05;bgX.globalAlpha=f.a;bgX.fillStyle='#FFD700';bgX.font=`bold ${f.sz}px Arial`;bgX.textAlign='center';bgX.fillText(f.t,f.x*W,f.y*H);}bgX.globalAlpha=1;requestAnimationFrame(drawBg);}
+    drawBg();
+
+    /* ── Confetti ── */
+    const cfC=document.getElementById('confetti-canvas'),cfX=cfC.getContext('2d');
+    cfC.width=innerWidth;cfC.height=innerHeight;
+    window.addEventListener('resize',()=>{cfC.width=innerWidth;cfC.height=innerHeight;});
+    let cp=[];
+    function burst(){const cols=['#FFD700','#22c55e','#3b82f6','#ec4899','#f97316','#8b5cf6'];for(let i=0;i<80;i++)cp.push({x:innerWidth/2+(Math.random()-.5)*300,y:innerHeight*.38,vx:(Math.random()-.5)*10,vy:-7-Math.random()*9,sz:6+Math.random()*8,col:cols[~~(Math.random()*cols.length)],rot:Math.random()*360,rv:(Math.random()-.5)*14,life:1});requestAnimationFrame(animCf);}
+    function animCf(){cfX.clearRect(0,0,cfC.width,cfC.height);cp=cp.filter(p=>p.life>.02);for(const p of cp){p.vy+=.38;p.x+=p.vx;p.y+=p.vy;p.rot+=p.rv;p.life-=.018;cfX.save();cfX.globalAlpha=p.life;cfX.translate(p.x,p.y);cfX.rotate(p.rot*Math.PI/180);cfX.fillStyle=p.col;cfX.fillRect(-p.sz/2,-p.sz/2,p.sz,p.sz*.55);cfX.restore();}if(cp.length>0)requestAnimationFrame(animCf);else cfX.clearRect(0,0,cfC.width,cfC.height);}
+
+    /* ── Master ingredient list: emoji ↔ Spanish word ── */
+    const INGREDIENTS = {
+      manzana:'🍎', banana:'🍌', uvas:'🍇', limon:'🍋', tomate:'🍅', zanahoria:'🥕',
+      maiz:'🌽', papa:'🥔', cebolla:'🧅', ajo:'🧄', lechuga:'🥬', pepino:'🥒',
+      champinon:'🍄', carne:'🥩', pollo:'🍗', pescado:'🐟', huevo:'🥚', queso:'🧀',
+      leche:'🥛', pan:'🍞', arroz:'🍚', fideos:'🍝', miel:'🍯', mantequilla:'🧈',
+      chocolate:'🍫', aji:'🌶️',
+    };
+    const WORD_LABEL = {
+      manzana:'Manzana', banana:'Banana', uvas:'Uvas', limon:'Limón', tomate:'Tomate',
+      zanahoria:'Zanahoria', maiz:'Maíz', papa:'Papa', cebolla:'Cebolla', ajo:'Ajo',
+      lechuga:'Lechuga', pepino:'Pepino', champinon:'Champiñón', carne:'Carne',
+      pollo:'Pollo', pescado:'Pescado', huevo:'Huevo', queso:'Queso', leche:'Leche',
+      pan:'Pan', arroz:'Arroz', fideos:'Fideos', miel:'Miel', mantequilla:'Mantequilla',
+      chocolate:'Chocolate', aji:'Ají',
+    };
+    const ALL_KEYS = Object.keys(INGREDIENTS);
+
+    /* ── Recipes grouped by level (3 → 4 → 5 ingredients) ── */
+    const LEVELS=[
+      { label:'1', desc:'3 INGREDIENTES', recipes:[
+        {emoji:'🥗', name:'Ensalada Fresca', need:['lechuga','tomate','zanahoria']},
+        {emoji:'🥪', name:'Sándwich de Queso', need:['pan','queso','mantequilla']},
+        {emoji:'🍚', name:'Arroz con Pollo', need:['arroz','pollo','cebolla']},
+        {emoji:'🍰', name:'Postre de Frutas', need:['manzana','banana','uvas']},
+        {emoji:'🍲', name:'Sopa de Verduras', need:['papa','zanahoria','maiz']},
+      ]},
+      { label:'2', desc:'4 INGREDIENTES', recipes:[
+        {emoji:'🍔', name:'Hamburguesa', need:['pan','carne','queso','tomate']},
+        {emoji:'🐟', name:'Pescado con Papas', need:['pescado','papa','limon','ajo']},
+        {emoji:'🍝', name:'Pasta con Champiñones', need:['fideos','champinon','ajo','queso']},
+        {emoji:'🥘', name:'Guiso de Pollo', need:['pollo','cebolla','ajo','zanahoria']},
+        {emoji:'🍮', name:'Flan Casero', need:['huevo','leche','miel','chocolate']},
+      ]},
+      { label:'3', desc:'5 INGREDIENTES', recipes:[
+        {emoji:'🍕', name:'Pizza Casera', need:['pan','queso','tomate','champinon','cebolla']},
+        {emoji:'🌮', name:'Tacos', need:['carne','tomate','cebolla','queso','aji']},
+        {emoji:'🍜', name:'Ramen', need:['fideos','huevo','pollo','cebolla','zanahoria']},
+        {emoji:'🥙', name:'Ensalada Completa', need:['lechuga','tomate','pepino','zanahoria','queso']},
+        {emoji:'🍛', name:'Arroz Especial', need:['arroz','pollo','zanahoria','maiz','cebolla']},
+      ]},
+    ];
+    const ADVANCE=2;
+
+    let score=0, streak=0, levelIdx=0, correctInLevel=0;
+    let usedIdx=[];
+    let current=null, basketItems=[], answered=false;
+
+    function pickRecipe(){
+      const pool=LEVELS[levelIdx].recipes;
+      if(usedIdx.length>=pool.length) usedIdx=[];
+      let idx;
+      do { idx=Math.floor(Math.random()*pool.length); } while(usedIdx.includes(idx));
+      usedIdx.push(idx);
+      return pool[idx];
+    }
+
+    function shuffle(arr){ return arr.slice().sort(()=>Math.random()-.5); }
+
+    function buildPool(){
+      const need=current.need;
+      const distractorCount=Math.min(3, ALL_KEYS.length-need.length);
+      const distractors=shuffle(ALL_KEYS.filter(k=>!need.includes(k))).slice(0,distractorCount);
+      const tiles=shuffle([...need, ...distractors]);
+
+      const poolEl=document.getElementById('pool');
+      poolEl.innerHTML='';
+      tiles.forEach(key=>{
+        const el=document.createElement('div');
+        el.className='pool-tile';
+        el.textContent=INGREDIENTS[key];
+        el.dataset.key=key;
+        el.addEventListener('click', ()=>onPickIngredient(key, el));
+        poolEl.appendChild(el);
+      });
+    }
+
+    function onPickIngredient(key, el){
+      if(answered) return;
+      if(basketItems.includes(key)) return;
+
+      if(current.need.includes(key)){
+        basketItems.push(key);
+        el.classList.add('used');
+        const wordEl=document.querySelector(`.ing-word[data-key="${key}"]`);
+        if(wordEl) wordEl.classList.add('done');
+        renderBasket();
+
+        if(basketItems.length===current.need.length){
+          completeRecipe();
+        }
+      } else {
+        el.classList.add('wrong');
+        streak=0; document.getElementById('streak').textContent='🔥 0';
+        setMsg('❌ ESE NO ES UN INGREDIENTE DE LA RECETA','wrong');
+        document.getElementById('recipe-card').classList.add('wrong');
+        setTimeout(()=>{
+          el.classList.remove('wrong');
+          document.getElementById('recipe-card').classList.remove('wrong');
+          setMsg('LEE LA RECETA Y BUSCA LOS INGREDIENTES','');
+        }, 700);
+      }
+    }
+
+    function renderBasket(){
+      const basket=document.getElementById('basket');
+      basket.innerHTML = basketItems.map(k=>INGREDIENTS[k]).join(' ') || '🧺';
+      document.getElementById('basket-count').textContent = `${basketItems.length}/${current.need.length}`;
+      basket.classList.toggle('full', basketItems.length===current.need.length);
+    }
+
+    function completeRecipe(){
+      answered=true;
+      document.getElementById('recipe-card').classList.add('correct');
+      streak++; const bonus=current.need.length*10 + (streak>=3?20:0);
+      score+=bonus;
+      document.getElementById('score').textContent=score;
+      document.getElementById('streak').textContent=`🔥 ${streak}`;
+      const msg=streak>=5?`🏆 ¡RACHA DE ${streak}! +${bonus} PTS`:
+                streak>=3?`⭐ ¡GENIAL! RACHA DE ${streak}! +${bonus} PTS`:
+                          `✅ ¡DELICIOSO! +${bonus} PTS`;
+      setMsg(msg,'correct');
+      burst();
+
+      correctInLevel++;
+      if(correctInLevel>=ADVANCE && levelIdx<LEVELS.length-1){
+        levelIdx++; correctInLevel=0; usedIdx=[]; updateBadge();
+        setTimeout(()=>setMsg(`🚀 ¡NIVEL ${LEVELS[levelIdx].label}! ${LEVELS[levelIdx].desc}`,'correct'),900);
+      }
+      document.getElementById('next-btn').style.display='inline-block';
+    }
+
+    function nextRecipe(){
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('recipe-card').className='';
+      answered=false;
+      basketItems=[];
+
+      current=pickRecipe();
+      document.getElementById('dish-emoji').textContent=current.emoji;
+      document.getElementById('dish-name').textContent=current.name;
+
+      const listEl=document.getElementById('ingredient-list');
+      listEl.innerHTML='';
+      current.need.forEach(key=>{
+        const chip=document.createElement('div');
+        chip.className='ing-word '+(Math.random()<0.5 ? 'upper-case' : 'lower-case');
+        chip.dataset.key=key;
+        chip.textContent=WORD_LABEL[key];
+        listEl.appendChild(chip);
+      });
+
+      renderBasket();
+      buildPool();
+      setMsg('LEE LA RECETA Y BUSCA LOS INGREDIENTES','');
+    }
+
+    function updateBadge(){
+      const l=LEVELS[levelIdx];
+      document.getElementById('level-badge').textContent=`NIVEL ${l.label} — ${l.desc}`;
+    }
+    function setMsg(t,c){const e=document.getElementById('message');e.textContent=t;e.className=c;}
+
+    nextRecipe();
+  </script>
+</body>
+</html>

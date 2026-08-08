@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lienzo de Emojis – Juegos de Arte</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background:#0f0f1a;
+      min-height:100vh;
+      display:flex; flex-direction:column; align-items:center;
+      font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y:auto; overflow-x:hidden;
+      user-select:none;
+    }
+
+    canvas#bg { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+
+    #game {
+      position:relative; z-index:1;
+      display:flex; flex-direction:column;
+      align-items:center; gap:14px;
+      padding:16px 16px 30px;
+      width:100%; max-width:1180px;
+    }
+
+    /* ── Workspace: canvas on the left, tools panel on the right ── */
+    #workspace {
+      display:flex; gap:18px; align-items:flex-start;
+      width:100%;
+      flex-wrap:wrap-reverse;
+      justify-content:center;
+    }
+    #canvas-col {
+      display:flex; flex-direction:column; align-items:center; gap:10px;
+      flex:1 1 480px;
+      min-width:300px;
+    }
+    #tools-col {
+      display:flex; flex-direction:column; align-items:center; gap:12px;
+      flex:0 0 300px;
+      width:300px;
+    }
+    @media (max-width:760px) {
+      #tools-col { flex:1 1 100%; width:100%; }
+    }
+
+    /* ── Top bar ── */
+    #topbar { display:flex; align-items:center; gap:14px; width:100%; }
+    .home-btn {
+      text-decoration:none;
+      background:rgba(255,255,255,0.08);
+      border:2px solid rgba(255,255,255,0.15);
+      border-radius:50%; width:40px; height:40px;
+      display:flex; align-items:center; justify-content:center; font-size:1.2rem;
+      transition:border-color .15s, background .15s;
+    }
+    .home-btn:hover { border-color:#FFD700; background:rgba(255,215,0,.1); }
+    .page-title {
+      color:#FFD700; font-size:19px;
+      text-shadow:0 0 20px rgba(255,215,0,.4), 2px 2px 0 #b8860b;
+      letter-spacing:1px;
+    }
+
+    #clear-btn {
+      margin-left:auto;
+      padding:8px 18px;
+      font-size:.85rem; font-family:inherit; font-weight:bold; color:#fff;
+      background:rgba(239,68,68,.18);
+      border:2px solid rgba(239,68,68,.4);
+      border-radius:20px; cursor:pointer;
+      transition:transform .12s, background .12s;
+    }
+    #clear-btn:hover { transform:scale(1.05); background:rgba(239,68,68,.3); }
+
+    #hint {
+      font-size:12px; color:#94a3b8; text-align:center; max-width:640px; line-height:1.5;
+    }
+    #hint b { color:#e2e8f0; }
+
+    /* ── Mode toggle: place emojis vs. freehand draw vs. erase (icon-only) ── */
+    #mode-row { display:flex; gap:10px; }
+    .mode-btn {
+      width:52px; height:52px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:1.6rem; font-family:inherit; color:#94a3b8;
+      background:rgba(255,255,255,.05);
+      border:2px solid rgba(255,255,255,.15);
+      border-radius:50%; cursor:pointer;
+      transition:transform .12s, background .12s, border-color .12s, color .12s;
+    }
+    .mode-btn:hover { transform:scale(1.08); border-color:rgba(255,215,0,.4); }
+    .mode-btn.active {
+      color:#1a1a1a;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      border-color:#FFD700;
+      box-shadow:0 0 16px rgba(255,215,0,.4);
+    }
+
+    /* ── Brush size selector (draw mode only) ── */
+    #brush-row {
+      display:none; align-items:center; gap:10px;
+      background:rgba(255,255,255,.04);
+      border:2px solid rgba(255,255,255,.1);
+      border-radius:18px; padding:8px 16px;
+    }
+    #brush-row.visible { display:flex; }
+    #brush-label { font-size:11px; color:#64748b; letter-spacing:1px; }
+
+    /* ── Emoji size selector (emoji mode only) ── */
+    #size-row {
+      display:none; align-items:center; gap:10px;
+      background:rgba(255,255,255,.04);
+      border:2px solid rgba(255,255,255,.1);
+      border-radius:18px; padding:8px 16px;
+    }
+    #size-row.visible { display:flex; }
+    #size-label { font-size:11px; color:#64748b; letter-spacing:1px; }
+    .brush-btn {
+      width:34px; height:34px;
+      display:flex; align-items:center; justify-content:center;
+      background:rgba(255,255,255,.06);
+      border:2px solid rgba(255,255,255,.15);
+      border-radius:50%; cursor:pointer;
+      transition:transform .12s, border-color .12s, background .12s;
+      flex-shrink:0;
+    }
+    .brush-btn:hover { transform:scale(1.1); }
+    .brush-btn.active { border-color:#FFD700; background:rgba(255,215,0,.12); }
+    .brush-dot { border-radius:50%; background:#e2e8f0; display:block; }
+
+    /* ── Color palette ── */
+    #color-row {
+      display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center;
+      background:rgba(255,255,255,.04);
+      border:2px solid rgba(255,255,255,.1);
+      border-radius:18px; padding:10px 14px;
+    }
+    .swatch {
+      width:30px; height:30px; border-radius:50%;
+      border:3px solid rgba(255,255,255,.25);
+      cursor:pointer;
+      transition:transform .12s, border-color .12s;
+      flex-shrink:0;
+    }
+    .swatch:hover { transform:scale(1.15); }
+    .swatch.active { border-color:#FFD700; transform:scale(1.2); box-shadow:0 0 12px rgba(255,215,0,.6); }
+    .swatch.original {
+      background:
+        conic-gradient(from 0deg, #ef4444, #f97316, #eab308, #22c55e, #3b82f6, #8b5cf6, #ec4899, #ef4444);
+    }
+    #color-picker {
+      width:34px; height:34px; border:none; border-radius:50%;
+      cursor:pointer; background:none; padding:0;
+    }
+    #color-picker::-webkit-color-swatch-wrapper { padding:0; border-radius:50%; }
+    #color-picker::-webkit-color-swatch { border:3px solid rgba(255,255,255,.25); border-radius:50%; }
+
+    /* ── Emoji palette (draggable, paginated) ── */
+    #emoji-pager {
+      display:flex; flex-direction:column; align-items:center; gap:8px;
+      width:100%;
+    }
+    #pager-nav { display:flex; align-items:center; gap:16px; }
+    .page-arrow {
+      flex-shrink:0;
+      width:40px; height:40px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:1.2rem; font-family:inherit; font-weight:bold; color:#FFD700;
+      background:rgba(255,215,0,.1);
+      border:2px solid rgba(255,215,0,.3);
+      border-radius:50%;
+      cursor:pointer;
+      transition:transform .12s, background .12s;
+    }
+    .page-arrow:hover:not(:disabled) { transform:scale(1.1); background:rgba(255,215,0,.2); }
+    .page-arrow:disabled { opacity:.3; cursor:default; }
+
+    #emoji-row {
+      display:flex; gap:8px; flex-wrap:wrap; justify-content:center; align-content:flex-start;
+      width:100%;
+      min-height:250px;
+      padding:10px;
+      background:rgba(255,255,255,.03);
+      border:2px solid rgba(255,255,255,.08);
+      border-radius:18px;
+    }
+    #page-indicator {
+      text-align:center;
+      font-size:12px; color:#64748b; letter-spacing:1px;
+    }
+    .emoji-source {
+      width:46px; height:46px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:1.7rem;
+      background:rgba(255,255,255,.05);
+      border:2px solid rgba(255,255,255,.12);
+      border-radius:12px;
+      cursor:grab;
+      transition:transform .12s, border-color .12s;
+      flex-shrink:0;
+    }
+    .emoji-source:hover { transform:scale(1.1) translateY(-2px); border-color:#FFD700; }
+    .emoji-source.dragging { opacity:.3; }
+    .emoji-source.selected { border-color:#60a5fa; background:rgba(59,130,246,.15); }
+
+    /* ── Canvas ── */
+    #canvas-wrap {
+      position:relative;
+      width:100%; max-width:820px;
+      aspect-ratio:16/10;
+      background:
+        linear-gradient(rgba(0,0,0,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,.06) 1px, transparent 1px),
+        #ffffff;
+      background-size:24px 24px, 24px 24px, 100% 100%;
+      border:3px dashed rgba(255,255,255,.25);
+      border-radius:22px;
+      overflow:hidden;
+      transition:border-color .2s, background-color .2s;
+    }
+    #canvas-wrap.drag-over { border-color:#FFD700; background-color:#f4f4f4; }
+    #canvas-wrap.empty:not(.draw-mode)::after {
+      content:'⬇️ Arrastra un emoji aquí, o tócalo y luego toca el lienzo';
+      position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      color:#475569; font-size:13px; text-align:center; padding:20px;
+      pointer-events:none;
+    }
+    #canvas-wrap.draw-mode { cursor:crosshair; }
+
+    #draw-canvas {
+      position:absolute; inset:0;
+      width:100%; height:100%;
+      pointer-events:none;
+      touch-action:none;
+    }
+    #canvas-wrap.draw-mode #draw-canvas { pointer-events:auto; }
+
+    .sticker {
+      position:absolute;
+      font-size:3rem; line-height:1;
+      cursor:grab;
+      transform:translate(-50%,-50%) rotate(var(--rot,0deg));
+      touch-action:none;
+    }
+    .sticker:active { cursor:grabbing; }
+
+    /* .text-el is a non-editable positioned wrapper; .text-content is the actual
+       contentEditable region. Keeping the delete button OUTSIDE the editable region
+       (as a sibling, not a child) means typing / select-all-and-delete can never wipe it out. */
+    .text-el {
+      position:absolute;
+      cursor:grab;
+      transform:translate(-50%,-50%);
+      touch-action:none;
+    }
+    .text-el:active { cursor:grabbing; }
+    .text-content {
+      font-family:inherit; font-weight:bold; line-height:1.1;
+      white-space:nowrap;
+      cursor:grab;
+      outline:none;
+      padding:2px 8px;
+      border-radius:8px;
+      min-width:14px;
+      display:inline-block;
+    }
+    .text-content:focus { cursor:text; background:rgba(255,215,0,.15); box-shadow:0 0 0 2px #FFD700; }
+    .text-del {
+      display:none;
+      position:absolute; top:-11px; right:-11px;
+      width:22px; height:22px;
+      align-items:center; justify-content:center;
+      background:#ef4444; color:#fff;
+      border-radius:50%; font-size:12px; line-height:1;
+      cursor:pointer;
+      box-shadow:0 2px 6px rgba(0,0,0,.4);
+    }
+    .text-content:focus ~ .text-del { display:flex; }
+
+    #emoji-preview {
+      position:absolute;
+      line-height:1;
+      opacity:.45;
+      pointer-events:none;
+      transform:translate(-50%,-50%);
+      display:none;
+      z-index:5;
+    }
+
+    #sticker-count {
+      font-size:12px; color:#64748b;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html">🏠</a>
+      <span class="page-title">🎨 LIENZO DE EMOJIS</span>
+      <button id="clear-btn" onclick="clearCanvas()">🗑️ LIMPIAR</button>
+    </div>
+
+    <div id="hint">
+      1️⃣ Arrastra un <b>emoji</b> hasta el lienzo (o tócalo y luego toca el lienzo) — 2️⃣ Arrastra lo que pusiste para moverlo. Doble clic (o mantén presionado) para borrarlo. También puedes escribir <b>texto</b>, dibujar <b>líneas libres</b> con el pincel, o usar el <b>borrador</b> para corregir tu dibujo.
+    </div>
+
+    <div id="workspace">
+      <div id="canvas-col">
+        <div id="canvas-wrap" class="empty"
+             ondragover="onCanvasDragOver(event)"
+             ondragleave="onCanvasDragLeave(event)"
+             ondrop="onCanvasDrop(event)"
+             onclick="onCanvasClick(event)"
+             onmousemove="onCanvasHover(event)"
+             onmouseleave="hideEmojiPreview()">
+          <canvas id="draw-canvas"></canvas>
+          <div id="emoji-preview"></div>
+        </div>
+        <div id="sticker-count">0 elementos en el lienzo</div>
+      </div>
+
+      <div id="tools-col">
+        <div id="mode-row">
+          <button class="mode-btn active" id="mode-emoji" onclick="setMode('emoji')" title="Emojis">😀</button>
+          <button class="mode-btn" id="mode-text" onclick="setMode('text')" title="Texto">🔤</button>
+          <button class="mode-btn" id="mode-draw" onclick="setMode('draw')" title="Dibujar">✏️</button>
+          <button class="mode-btn" id="mode-erase" onclick="setMode('erase')" title="Borrar">🧹</button>
+        </div>
+
+        <div id="brush-row">
+          <span id="brush-label">GROSOR</span>
+          <button class="brush-btn" title="Fino" onclick="selectBrushSize(this,3)"><span class="brush-dot" style="width:6px;height:6px"></span></button>
+          <button class="brush-btn active" title="Medio" onclick="selectBrushSize(this,6)"><span class="brush-dot" style="width:11px;height:11px"></span></button>
+          <button class="brush-btn" title="Grueso" onclick="selectBrushSize(this,12)"><span class="brush-dot" style="width:17px;height:17px"></span></button>
+          <button class="brush-btn" title="Extra grueso" onclick="selectBrushSize(this,20)"><span class="brush-dot" style="width:23px;height:23px"></span></button>
+        </div>
+
+        <div id="size-row" class="visible">
+          <span id="size-label">TAMAÑO</span>
+          <button class="brush-btn" title="Pequeño" onclick="selectEmojiSize(this,1.8)"><span class="brush-dot" style="width:8px;height:8px"></span></button>
+          <button class="brush-btn active" title="Mediano" onclick="selectEmojiSize(this,3)"><span class="brush-dot" style="width:14px;height:14px"></span></button>
+          <button class="brush-btn" title="Grande" onclick="selectEmojiSize(this,4.2)"><span class="brush-dot" style="width:20px;height:20px"></span></button>
+          <button class="brush-btn" title="Extra grande" onclick="selectEmojiSize(this,5.5)"><span class="brush-dot" style="width:26px;height:26px"></span></button>
+        </div>
+
+        <div id="color-row">
+          <div class="swatch active" style="background:#ef4444" data-color="#ef4444" onclick="selectPreset(this,'#ef4444')"></div>
+          <div class="swatch" style="background:#f97316" data-color="#f97316" onclick="selectPreset(this,'#f97316')"></div>
+          <div class="swatch" style="background:#eab308" data-color="#eab308" onclick="selectPreset(this,'#eab308')"></div>
+          <div class="swatch" style="background:#22c55e" data-color="#22c55e" onclick="selectPreset(this,'#22c55e')"></div>
+          <div class="swatch" style="background:#06b6d4" data-color="#06b6d4" onclick="selectPreset(this,'#06b6d4')"></div>
+          <div class="swatch" style="background:#3b82f6" data-color="#3b82f6" onclick="selectPreset(this,'#3b82f6')"></div>
+          <div class="swatch" style="background:#8b5cf6" data-color="#8b5cf6" onclick="selectPreset(this,'#8b5cf6')"></div>
+          <div class="swatch" style="background:#ec4899" data-color="#ec4899" onclick="selectPreset(this,'#ec4899')"></div>
+          <div class="swatch" style="background:#78350f" data-color="#78350f" onclick="selectPreset(this,'#78350f')"></div>
+          <div class="swatch" style="background:#0f172a;border-color:#64748b" data-color="#0f172a" onclick="selectPreset(this,'#0f172a')"></div>
+          <div class="swatch" style="background:#ffffff" data-color="#ffffff" onclick="selectPreset(this,'#ffffff')"></div>
+          <input id="color-picker" type="color" value="#ef4444" oninput="selectCustom(this.value)" title="Elige cualquier color"/>
+        </div>
+
+        <div id="emoji-pager">
+          <div id="emoji-row"></div>
+          <div id="pager-nav">
+            <button class="page-arrow" id="prev-page" onclick="changePage(-1)" title="Página anterior">◀</button>
+            <div id="page-indicator"></div>
+            <button class="page-arrow" id="next-page" onclick="changePage(1)" title="Página siguiente">▶</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ── Starfield background ── */
+    const bgC=document.getElementById('bg'),bgX=bgC.getContext('2d');
+    function rbg(){bgC.width=innerWidth;bgC.height=innerHeight;}
+    rbg();window.addEventListener('resize',rbg);
+    const stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*1.5,sp:.00008+Math.random()*.00015,tw:Math.random()*Math.PI*2}));
+    const bgF=['🎨','⭐','❤️','🌈','✨'].map(c=>({t:c,x:Math.random(),y:Math.random(),sp:.0001+Math.random()*.0002,sz:13+Math.random()*16,a:.04+Math.random()*.07}));
+    function drawBg(){const W=bgC.width,H=bgC.height;bgX.fillStyle='#0f0f1a';bgX.fillRect(0,0,W,H);for(const s of stars){s.tw+=s.sp*60;bgX.globalAlpha=.4+Math.sin(s.tw)*.4;bgX.fillStyle='#fff';bgX.beginPath();bgX.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);bgX.fill();}for(const f of bgF){f.y-=f.sp;if(f.y<-.05)f.y=1.05;bgX.globalAlpha=f.a;bgX.fillStyle='#FFD700';bgX.font=`bold ${f.sz}px Arial`;bgX.textAlign='center';bgX.fillText(f.t,f.x*W,f.y*H);}bgX.globalAlpha=1;requestAnimationFrame(drawBg);}
+    drawBg();
+
+    /* ── Emoji palette — a huge, kid-friendly set across every category ── */
+    const EMOJIS = [
+      // Caras y emociones
+      '😀','😃','😄','😁','😆','😅','😂','🤣','🥰','😍','🤩','😘','😗','😚','😙','😋','😛','😜','🤪','😝',
+      '🤑','🤗','🤭','🤫','🤔','🤐','🤨','😐','😑','😶','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴',
+      '😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','🤯','🤠','🥳','😎','🤓','🧐','😕','😟','🙁','😮',
+      '😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤',
+      '😡','😠','🤬','😈','👿','💀','☠️','👻','👽','🤖','😇','🙂','🙃','😊',
+      // Animales
+      '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐽','🐸','🐵','🙈','🙉','🙊','🐔',
+      '🐧','🐦','🐤','🐣','🐥','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🪱','🐛','🦋','🐌','🐞','🐜',
+      '🪰','🪲','🦗','🕷️','🕸️','🐢','🐍','🦎','🦂','🐙','🦑','🦐','🦞','🦀','🐡','🐠','🐟','🐬','🐳','🐋',
+      '🦈','🐊','🐅','🐆','🦓','🦍','🦧','🐘','🦣','🦏','🦛','🐪','🐫','🦒','🦘','🦬','🐃','🐂','🐄','🐎',
+      '🐖','🐏','🐑','🦙','🐐','🦌','🐕','🦮','🐩','🐈','🐓','🦃','🦤','🦚','🦜','🦢','🦩','🕊️','🐇','🦝',
+      '🦨','🦡','🦫','🦦','🦥','🐁','🐀','🐿️','🦔',
+      // Naturaleza y clima
+      '🌸','💮','🏵️','🌹','🥀','🌺','🌻','🌼','🌷','🪷','🌱','🪴','🌲','🌳','🌴','🌵','🌾','🌿','☘️','🍀',
+      '🍁','🍂','🍃','🍄','🪨','🌍','🌎','🌏','🌕','🌖','🌗','🌘','🌑','🌒','🌓','🌔','🌙','🌛','🌜','🌚',
+      '🌝','🌞','⭐','🌟','💫','✨','☄️','🪐','🌈','☀️','🌤️','⛅','🌥️','🌦️','🌧️','⛈️','🌩️','🌨️','❄️','☃️',
+      '⛄','🌬️','💨','🌪️','🌫️','🌊','💧','💦','☔','⚡','🔥','🌋',
+      // Comida y bebida
+      '🍎','🍏','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦',
+      '🥬','🥒','🌶️','🫑','🌽','🥕','🫒','🧄','🧅','🥔','🍠','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈',
+      '🥞','🧇','🥓','🥩','🍗','🍖','🌭','🍔','🍟','🍕','🥪','🥙','🧆','🌮','🌯','🫔','🥗','🥘','🫕','🍝',
+      '🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥠','🍢','🍡','🍦','🍧','🍨','🍩','🍪',
+      '🎂','🍰','🧁','🥧','🍫','🍬','🍭','🍮','🍯','🍼','🥛','☕','🍵','🧃','🥤','🧋','🍺','🍹','🍾','🧊',
+      // Actividades y deportes
+      '⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','🎱','🪀','🏓','🏸','🥊','🥋','🥅','⛳','🪁','🏹','🎣',
+      '🤿','🥊','🎽','🛹','🛼','🛷','⛸️','🥌','🎿','🏂','🏋️','🤸','🤺','🤾','🏌️','🏇','🧘','🏄','🏊','🤽',
+      '🚣','🧗','🚴','🏆','🥇','🥈','🥉','🏅','🎖️','🎗️','🎫','🎟️','🎪','🎭','🎨','🎬','🎤','🎧','🎼','🎹',
+      '🥁','🪘','🎷','🎺','🎸','🪕','🎻','🎲','♟️','🎯','🎳','🎮','🎰','🧩',
+      // Objetos, viajes y lugares
+      '🚗','🚕','🚙','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🛵','🏍️','🛺','🚲','🛴','🚨',
+      '🚔','🚍','🚘','🚖','🚡','🚠','🚟','🚃','🚋','🚞','🚝','🚄','🚅','🚈','🚂','🚆','🚇','🚊','🚉','✈️',
+      '🛫','🛬','🛩️','💺','🛰️','🚀','🛸','🚁','🛶','⛵','🚤','🛳️','⛴️','🚢','⚓','🪝','⛽','🚧','🚦','🚥',
+      '🗺️','🗿','🗽','🗼','🏰','🏯','🏟️','🎡','🎢','🎠','⛲','⛱️','🏖️','🏝️','🏜️','🌋','⛰️','🏔️','🗻','🏕️',
+      '⛺','🏠','🏡','🏘️','🏚️','🏗️','🏭','🏢','🏬','🏣','🏤','🏥','🏦','🏨','🏪','🏫','🏩','💒','🏛️','⛪',
+      '🕌','🕍','🛕','🕋','⛩️',
+      // Cosas y símbolos
+      '💎','🔮','🧿','🎁','🎈','🎉','🎊','🎀','🪅','🪄','🧸','🪆','🖼️','🕯️','💡','🔦','🏮','📔','📚','📖',
+      '✏️','🖍️','🖌️','🖊️','📷','📸','🎥','📺','📻','☎️','📱','💻','⌨️','🖱️','💽','💾','💿','📀','🎬','🔑',
+      '🔒','🔓','🔨','🪓','⛏️','🪚','🔧','🔩','⚙️','🧲','🪜','🧰','🧪','🧫','🔬','🔭','📡','💉','🩹','🩺',
+      '💊','🚪','🪑','🛏️','🛋️','🚽','🚿','🛁','🪞','🧴','🧹','🧺','🧻','🪣','🧼','🪥','🪒','🧽','🔔','🔕',
+      // Corazones y símbolos
+      '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','💕','💞','💓','💗','💖','💘','💝','💟',
+      '☮️','✝️','☪️','🕉️','☸️','✡️','🔯','🕎','☯️','♻️','🔱','📛','⚛️','🆗','🆒','🆕','🆙','🔝','💯','✅',
+    ];
+
+    const UNIQUE_EMOJIS=[...new Set(EMOJIS)];
+    const PAGE_SIZE=25; // 5 columns × 5 rows fits the narrower sidebar palette
+    const TOTAL_PAGES=Math.ceil(UNIQUE_EMOJIS.length/PAGE_SIZE);
+    let currentPage=0;
+
+    const emojiRow=document.getElementById('emoji-row');
+
+    function renderPage(){
+      emojiRow.innerHTML='';
+      const start=currentPage*PAGE_SIZE;
+      const pageEmojis=UNIQUE_EMOJIS.slice(start, start+PAGE_SIZE);
+
+      pageEmojis.forEach(e=>{
+        const el=document.createElement('div');
+        el.className='emoji-source';
+        el.textContent=e;
+        el.draggable=true;
+        if(selectedEmojiChar===e) el.classList.add('selected');
+        el.addEventListener('dragstart', ev=>{
+          ev.dataTransfer.setData('text/plain', e);
+          ev.dataTransfer.effectAllowed='copy';
+          el.classList.add('dragging');
+          draggingEmojiChar=e;
+        });
+        el.addEventListener('dragend', ()=>{ el.classList.remove('dragging'); draggingEmojiChar=null; hideEmojiPreview(); });
+        el.addEventListener('click', ()=>{
+          document.querySelectorAll('.emoji-source').forEach(s=>s.classList.remove('selected'));
+          if(selectedEmojiChar===e){ selectedEmojiChar=null; hideEmojiPreview(); return; }
+          el.classList.add('selected');
+          selectedEmojiChar=e;
+        });
+        emojiRow.appendChild(el);
+      });
+
+      document.getElementById('page-indicator').textContent=`Página ${currentPage+1} de ${TOTAL_PAGES}`;
+      document.getElementById('prev-page').disabled = currentPage===0;
+      document.getElementById('next-page').disabled = currentPage===TOTAL_PAGES-1;
+    }
+
+    function changePage(dir){
+      const next=currentPage+dir;
+      if(next<0 || next>=TOTAL_PAGES) return;
+      currentPage=next;
+      renderPage();
+    }
+
+    let selectedEmojiChar=null; // tap-to-place fallback (mobile) — tracked by character so it survives page changes
+    let currentColor='#ef4444'; // used by the draw and text tools only (matches the default active swatch)
+
+    /* ── Color selection (draw & text tools only — emoji stickers keep their native colors) ── */
+    function selectPreset(el,color){
+      document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+      el.classList.add('active');
+      currentColor=color;
+      document.getElementById('color-picker').value = color || '#ef4444';
+      updateDrawStyle();
+    }
+    function selectCustom(hex){
+      document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+      currentColor=hex;
+      updateDrawStyle();
+    }
+
+    /* ── Canvas drop / place ── */
+    const canvasWrap=document.getElementById('canvas-wrap');
+    let draggingEmojiChar=null; // emoji being dragged in from the palette, for the live preview
+
+    function onCanvasDragOver(ev){
+      ev.preventDefault();
+      canvasWrap.classList.add('drag-over');
+      if(draggingEmojiChar){
+        const rect=canvasWrap.getBoundingClientRect();
+        showEmojiPreview(draggingEmojiChar, ev.clientX-rect.left, ev.clientY-rect.top);
+      }
+    }
+    function onCanvasDragLeave(){ canvasWrap.classList.remove('drag-over'); hideEmojiPreview(); }
+    function onCanvasDrop(ev){
+      ev.preventDefault();
+      canvasWrap.classList.remove('drag-over');
+      hideEmojiPreview();
+      const rect=canvasWrap.getBoundingClientRect();
+      const x=ev.clientX-rect.left, y=ev.clientY-rect.top;
+
+      const emoji=ev.dataTransfer.getData('text/plain');
+      if(!emoji) return;
+      placeSticker(emoji, x, y);
+    }
+    let placedViaPointer=false; // de-dupe: pointerdown already placed this tap, ignore the trailing click
+    function deselectEmojiTile(){
+      document.querySelectorAll('.emoji-source').forEach(s=>s.classList.remove('selected'));
+      selectedEmojiChar=null;
+      hideEmojiPreview();
+    }
+    function tryPlaceFromEvent(ev){
+      if(ev.target.closest('.sticker, .text-el')) return false; // handled by that element's own listeners
+      if(toolMode==='emoji'){
+        if(!selectedEmojiChar) return false;
+        const rect=canvasWrap.getBoundingClientRect();
+        placeSticker(selectedEmojiChar, ev.clientX-rect.left, ev.clientY-rect.top);
+        // Single-shot: deselect after placing, so a further tap on the canvas doesn't
+        // silently stamp another copy (which looked like the sticker "moving").
+        deselectEmojiTile();
+        return true;
+      }
+      if(toolMode==='text'){
+        const rect=canvasWrap.getBoundingClientRect();
+        placeText(ev.clientX-rect.left, ev.clientY-rect.top);
+        return true;
+      }
+      return false;
+    }
+    /* A plain tap doesn't always reliably fire 'click' on the very first interaction
+       (seen with the same root cause as the paint tool's tap bug) — use 'pointerdown'
+       as the primary placement trigger, with 'click' only as a fallback. */
+    canvasWrap.addEventListener('pointerdown', ev=>{
+      placedViaPointer = tryPlaceFromEvent(ev);
+    });
+    function onCanvasClick(ev){
+      if(placedViaPointer){ placedViaPointer=false; return; }
+      tryPlaceFromEvent(ev);
+    }
+
+    let stickerSize=3; // rem, shared by emoji stickers and text
+    function selectEmojiSize(el,size){
+      document.querySelectorAll('#size-row .brush-btn').forEach(b=>b.classList.remove('active'));
+      el.classList.add('active');
+      stickerSize=size;
+    }
+
+    /* ── Shared drag-to-reposition for anything placed on the canvas ──
+       Custom pointer-based dragging — NOT native HTML5 draggable, which triggers on the
+       tiniest click jitter and shows the browser's tilted drag-ghost. A tap (no meaningful
+       movement) fires onTap; a real drag beyond a small threshold moves the element. ── */
+    function makeMovable(el, onTap){
+      const DRAG_THRESHOLD=6;
+      let dragStartX=0, dragStartY=0, origLeft=0, origTop=0, isDragCandidate=false, hasMoved=false, pointerHandledTap=false;
+
+      el.addEventListener('pointerdown', ev=>{
+        ev.stopPropagation(); // don't let canvasWrap's placement handler see this
+        isDragCandidate=true;
+        hasMoved=false;
+        dragStartX=ev.clientX; dragStartY=ev.clientY;
+        origLeft=parseFloat(el.style.left); origTop=parseFloat(el.style.top);
+        try{ el.setPointerCapture(ev.pointerId); }catch(e){}
+      });
+      el.addEventListener('pointermove', ev=>{
+        if(!isDragCandidate) return;
+        const dx=ev.clientX-dragStartX, dy=ev.clientY-dragStartY;
+        if(!hasMoved && Math.hypot(dx,dy)>DRAG_THRESHOLD) hasMoved=true;
+        if(hasMoved){
+          el.style.left=(origLeft+dx)+'px';
+          el.style.top=(origTop+dy)+'px';
+        }
+      });
+      el.addEventListener('pointerup', ev=>{
+        ev.stopPropagation();
+        if(!isDragCandidate) return;
+        isDragCandidate=false;
+        if(!hasMoved){ pointerHandledTap=true; if(onTap) onTap(); }
+      });
+      /* Fallback in case pointerdown/up didn't fire cleanly (same class of issue as
+         the paint tool's tap bug). De-duped against pointerup so a normal tap doesn't
+         fire onTap twice. */
+      el.addEventListener('click', e=>{
+        e.stopPropagation();
+        if(pointerHandledTap){ pointerHandledTap=false; return; }
+        if(!hasMoved && onTap) onTap();
+      });
+    }
+
+    function placeSticker(emoji, x, y){
+      canvasWrap.classList.remove('empty');
+      const el=document.createElement('div');
+      el.className='sticker';
+      el.textContent=emoji;
+      el.style.left=x+'px';
+      el.style.top=y+'px';
+      el.style.fontSize=stickerSize+'rem';
+      el.style.setProperty('--rot', (Math.random()*30-15)+'deg');
+
+      makeMovable(el, null); // a tap on a placed emoji does nothing; only dragging moves it
+
+      let pressTimer=null;
+      el.addEventListener('dblclick', ()=>removeElement(el));
+      el.addEventListener('touchstart', ()=>{ pressTimer=setTimeout(()=>removeElement(el), 600); });
+      el.addEventListener('touchend', ()=>clearTimeout(pressTimer));
+
+      canvasWrap.appendChild(el);
+      updateCount();
+    }
+
+    /* ── Free text tool ── */
+    function placeText(x, y){
+      canvasWrap.classList.remove('empty');
+
+      // Wrapper handles position + dragging; the delete button lives as its sibling
+      // (never inside the contentEditable region) so typing/select-all can't erase it.
+      const el=document.createElement('div');
+      el.className='text-el';
+      el.style.left=x+'px';
+      el.style.top=y+'px';
+
+      const content=document.createElement('div');
+      content.className='text-content';
+      content.contentEditable='true';
+      content.style.fontSize=(stickerSize*0.6)+'rem';
+      content.style.color=currentColor || '#1f2937';
+      el.appendChild(content);
+
+      const del=document.createElement('span');
+      del.className='text-del';
+      del.textContent='✕';
+      del.addEventListener('pointerdown', e=>e.stopPropagation());
+      del.addEventListener('click', e=>{ e.stopPropagation(); removeElement(el); });
+      el.appendChild(del);
+
+      content.addEventListener('keydown', e=>{
+        if(e.key==='Enter'){ e.preventDefault(); content.blur(); }
+      });
+      content.addEventListener('blur', ()=>{
+        if(content.textContent.trim()===''){ removeElement(el); return; }
+        updateCount();
+      });
+
+      makeMovable(el, ()=>content.focus());
+
+      canvasWrap.appendChild(el);
+      updateCount();
+      requestAnimationFrame(()=>content.focus());
+    }
+
+    function removeElement(el){
+      el.remove();
+      updateCount();
+    }
+
+    /* ── Live preview of the selected/dragged emoji as it hovers the canvas ── */
+    const emojiPreview=document.getElementById('emoji-preview');
+    function showEmojiPreview(emoji, x, y){
+      emojiPreview.textContent=emoji;
+      emojiPreview.style.fontSize=stickerSize+'rem';
+      emojiPreview.style.left=x+'px';
+      emojiPreview.style.top=y+'px';
+      emojiPreview.style.display='block';
+    }
+    function hideEmojiPreview(){
+      emojiPreview.style.display='none';
+    }
+    function onCanvasHover(ev){
+      if(toolMode!=='emoji' || !selectedEmojiChar){ hideEmojiPreview(); return; }
+      const rect=canvasWrap.getBoundingClientRect();
+      showEmojiPreview(selectedEmojiChar, ev.clientX-rect.left, ev.clientY-rect.top);
+    }
+
+    function updateCount(){
+      const n=canvasWrap.querySelectorAll('.sticker, .text-el').length;
+      document.getElementById('sticker-count').textContent = n===0 ? '0 elementos en el lienzo' : `${n} elemento${n===1?'':'s'} en el lienzo`;
+      canvasWrap.classList.toggle('empty', n===0 && !hasDrawing);
+    }
+
+    function clearCanvas(){
+      canvasWrap.querySelectorAll('.sticker, .text-el').forEach(removeElement);
+      clearDrawing();
+    }
+
+    /* ── Mode toggle: place emojis vs. text vs. freehand draw vs. erase ── */
+    let toolMode='emoji';
+    function setMode(mode){
+      toolMode=mode;
+      const painting = mode==='draw' || mode==='erase';
+      const needsColor = mode==='draw' || mode==='text';
+      document.getElementById('mode-emoji').classList.toggle('active', mode==='emoji');
+      document.getElementById('mode-text').classList.toggle('active', mode==='text');
+      document.getElementById('mode-draw').classList.toggle('active', mode==='draw');
+      document.getElementById('mode-erase').classList.toggle('active', mode==='erase');
+      document.getElementById('brush-row').classList.toggle('visible', painting);
+      document.getElementById('size-row').classList.toggle('visible', mode==='emoji' || mode==='text');
+      document.getElementById('emoji-pager').style.display = mode==='emoji' ? '' : 'none';
+      document.getElementById('color-row').style.display = needsColor ? '' : 'none';
+      canvasWrap.classList.toggle('draw-mode', painting);
+      canvasWrap.classList.toggle('erase-mode', mode==='erase');
+      if(mode!=='emoji') hideEmojiPreview();
+      updateDrawStyle();
+    }
+
+    /* ── Freehand line drawing ── */
+    const drawCanvas=document.getElementById('draw-canvas');
+    const drawCtx=drawCanvas.getContext('2d');
+    let isDrawing=false;
+    let hasDrawing=false;
+    let lastX=0, lastY=0;
+
+    function resizeDrawCanvas(){
+      // Preserve existing artwork across resizes by redrawing at the new pixel size
+      const prev=drawCanvas.width ? drawCanvas.toDataURL() : null;
+      const dpr=window.devicePixelRatio||1;
+      const rect=canvasWrap.getBoundingClientRect();
+      drawCanvas.width=rect.width*dpr;
+      drawCanvas.height=rect.height*dpr;
+      drawCtx.setTransform(dpr,0,0,dpr,0,0);
+      drawCtx.lineCap='round';
+      drawCtx.lineJoin='round';
+      if(prev){
+        const img=new Image();
+        img.onload=()=>drawCtx.drawImage(img,0,0,rect.width,rect.height);
+        img.src=prev;
+      }
+    }
+    window.addEventListener('resize', resizeDrawCanvas);
+    new ResizeObserver(resizeDrawCanvas).observe(canvasWrap);
+
+    function drawPointFromEvent(ev){
+      const rect=canvasWrap.getBoundingClientRect();
+      return { x: ev.clientX-rect.left, y: ev.clientY-rect.top };
+    }
+
+    function stampDot(x,y){
+      hasDrawing=true;
+      canvasWrap.classList.remove('empty');
+      drawCtx.beginPath();
+      drawCtx.arc(x,y, drawCtx.lineWidth/2, 0, Math.PI*2);
+      drawCtx.fillStyle=drawCtx.strokeStyle;
+      drawCtx.fill();
+    }
+
+    function isPaintMode(){ return toolMode==='draw' || toolMode==='erase'; }
+
+    drawCanvas.addEventListener('pointerdown', ev=>{
+      if(!isPaintMode()) return;
+      isDrawing=true;
+      try{ drawCanvas.setPointerCapture(ev.pointerId); }catch(e){}
+      const p=drawPointFromEvent(ev);
+      lastX=p.x; lastY=p.y;
+      stampDot(p.x,p.y);
+    });
+    drawCanvas.addEventListener('pointermove', ev=>{
+      if(!isDrawing) return;
+      const p=drawPointFromEvent(ev);
+      drawCtx.beginPath();
+      drawCtx.moveTo(lastX,lastY);
+      drawCtx.lineTo(p.x,p.y);
+      drawCtx.stroke();
+      lastX=p.x; lastY=p.y;
+    });
+    function stopDrawing(){ isDrawing=false; }
+    drawCanvas.addEventListener('pointerup', stopDrawing);
+    drawCanvas.addEventListener('pointerleave', stopDrawing);
+    drawCanvas.addEventListener('pointercancel', stopDrawing);
+
+    /* Fallback for a plain tap/click that (for whatever input-device reason)
+       didn't produce a pointerdown — guarantees a single tap always leaves a mark. */
+    drawCanvas.addEventListener('click', ev=>{
+      if(!isPaintMode()) return;
+      const p=drawPointFromEvent(ev);
+      stampDot(p.x,p.y);
+    });
+
+    function drawColor(){
+      // Freehand strokes need a real color; fall back to a dark pencil tone when
+      // "original" (no tint) is selected, since that only makes sense for emoji.
+      return currentColor || '#1f2937';
+    }
+    let brushSize=6;
+    function updateDrawStyle(){
+      drawCtx.lineWidth=brushSize;
+      if(toolMode==='erase'){
+        drawCtx.globalCompositeOperation='destination-out';
+        drawCtx.strokeStyle='rgba(0,0,0,1)';
+      } else {
+        drawCtx.globalCompositeOperation='source-over';
+        drawCtx.strokeStyle=drawColor();
+      }
+    }
+    function selectBrushSize(el,size){
+      document.querySelectorAll('.brush-btn').forEach(b=>b.classList.remove('active'));
+      el.classList.add('active');
+      brushSize=size;
+      updateDrawStyle();
+    }
+
+    function clearDrawing(){
+      drawCtx.save();
+      drawCtx.setTransform(1,0,0,1,0,0);
+      drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+      drawCtx.restore();
+      hasDrawing=false;
+      updateCount();
+    }
+
+    resizeDrawCanvas();
+    setMode('emoji');
+    renderPage();
+  </script>
+</body>
+</html>
