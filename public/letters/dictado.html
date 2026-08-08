@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dictado de Cuentos – Juegos de Letras</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background:#0f0f1a;
+      min-height:100vh;
+      display:flex; flex-direction:column; align-items:center;
+      font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y:auto; overflow-x:hidden;
+      user-select:none;
+    }
+
+    canvas#bg { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+    .confetti-layer { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:50; }
+
+    #game {
+      position:relative; z-index:1;
+      display:flex; flex-direction:column;
+      align-items:center; gap:14px;
+      padding:16px 16px 30px;
+      width:100%; max-width:620px;
+    }
+
+    /* ── Top bar ── */
+    #topbar { display:flex; align-items:center; gap:14px; width:100%; }
+    .home-btn {
+      text-decoration:none;
+      background:rgba(255,255,255,0.08);
+      border:2px solid rgba(255,255,255,0.15);
+      border-radius:50%; width:40px; height:40px;
+      display:flex; align-items:center; justify-content:center; font-size:1.2rem;
+      transition:border-color .15s, background .15s;
+    }
+    .home-btn:hover { border-color:#FFD700; background:rgba(255,215,0,.1); }
+    .page-title {
+      color:#FFD700; font-size:18px;
+      text-shadow:0 0 20px rgba(255,215,0,.4), 2px 2px 0 #b8860b;
+      letter-spacing:1px;
+    }
+
+    /* ── HUD ── */
+    #hud { display:flex; gap:26px; align-items:center; }
+    .hud-box { text-align:center; }
+    .hud-label { color:#64748b; font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+    .hud-value { color:#FFD700; font-size:24px; font-weight:bold; text-shadow:0 0 14px rgba(255,215,0,.4); }
+
+    #level-badge {
+      background:rgba(255,215,0,.1); border:2px solid rgba(255,215,0,.3);
+      color:#FFD700; font-size:12px; letter-spacing:2px;
+      padding:4px 16px; border-radius:20px;
+    }
+
+    /* ── Story card ── */
+    #story-card {
+      width:100%;
+      background:rgba(255,255,255,.05);
+      border:2px solid rgba(255,255,255,.1);
+      border-radius:26px;
+      padding:22px 20px;
+      display:flex; flex-direction:column;
+      align-items:center; gap:16px;
+      transition:border-color .3s, box-shadow .3s;
+    }
+    #story-card.correct { border-color:#22c55e; box-shadow:0 0 40px rgba(34,197,94,.3); }
+    #story-card.wrong   { border-color:#ef4444; box-shadow:0 0 40px rgba(239,68,68,.25); }
+
+    #story-title {
+      font-size:12px; letter-spacing:2px; color:#64748b; text-transform:uppercase;
+    }
+    #story-emoji { font-size:2.6rem; }
+
+    #listen-btn {
+      padding:14px 36px;
+      font-size:1.1rem; font-family:inherit; font-weight:bold; color:#1a1a1a;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      border:none; border-radius:50px; cursor:pointer;
+      box-shadow:0 6px 24px rgba(255,215,0,.4);
+      transition:transform .12s;
+      display:flex; align-items:center; gap:10px;
+    }
+    #listen-btn:hover:not(:disabled) { transform:scale(1.06); }
+    #listen-btn:disabled { opacity:.6; cursor:default; }
+    #listen-btn.speaking { animation:pulse 0.8s ease-in-out infinite; }
+    @keyframes pulse {
+      0%,100%{ box-shadow:0 6px 24px rgba(255,215,0,.4); }
+      50%{ box-shadow:0 6px 34px rgba(255,215,0,.75); }
+    }
+
+    #replay-hint { font-size:12px; color:#64748b; text-align:center; }
+
+    /* ── Answer input ── */
+    #answer-form { width:100%; display:flex; flex-direction:column; align-items:center; gap:12px; }
+    #answer-input {
+      width:100%; max-width:480px;
+      padding:16px 18px;
+      font-size:1.15rem; font-family:inherit; font-weight:bold; color:#e2e8f0;
+      background:rgba(255,255,255,.06);
+      border:3px solid rgba(255,255,255,.18);
+      border-radius:16px;
+      text-align:center;
+      transition:border-color .15s, background .15s;
+    }
+    #answer-input:focus { outline:none; border-color:#60a5fa; background:rgba(59,130,246,.1); }
+    #answer-input.correct { border-color:#22c55e; background:rgba(34,197,94,.12); color:#22c55e; }
+    #answer-input.wrong   { border-color:#ef4444; background:rgba(239,68,68,.12); color:#ef4444; animation:shake .4s ease; }
+    @keyframes shake {
+      0%,100%{ transform:translateX(0); }
+      20%{ transform:translateX(-8px); }
+      40%{ transform:translateX(8px); }
+      60%{ transform:translateX(-5px); }
+      80%{ transform:translateX(5px); }
+    }
+
+    #check-btn {
+      padding:13px 40px;
+      font-size:1.05rem; font-family:inherit; font-weight:bold; color:#fff;
+      background:rgba(59,130,246,.22);
+      border:3px solid rgba(59,130,246,.4);
+      border-radius:50px; cursor:pointer;
+      transition:transform .12s, background .12s, border-color .12s;
+    }
+    #check-btn:hover:not(:disabled) { transform:scale(1.05); background:rgba(59,130,246,.35); border-color:#60a5fa; }
+    #check-btn:disabled { opacity:.5; cursor:default; }
+
+    #correct-phrase {
+      font-size:14px; color:#94a3b8; text-align:center; min-height:20px;
+    }
+    #correct-phrase b { color:#FFD700; }
+
+    /* ── Message ── */
+    #message {
+      font-size:16px; font-weight:bold; letter-spacing:1px;
+      min-height:24px; text-align:center; color:#e2e8f0;
+    }
+    #message.correct { color:#22c55e; text-shadow:0 0 12px rgba(34,197,94,.5); }
+    #message.wrong   { color:#ef4444; text-shadow:0 0 12px rgba(239,68,68,.5); }
+
+    /* ── Next button ── */
+    #next-btn {
+      display:none; padding:12px 40px;
+      font-size:1.1rem; font-family:inherit; font-weight:bold; color:#1a1a1a;
+      background:linear-gradient(90deg,#FFD700,#F59E0B);
+      border:none; border-radius:50px; cursor:pointer;
+      box-shadow:0 5px 22px rgba(255,215,0,.4); transition:transform .12s;
+    }
+    #next-btn:hover { transform:scale(1.07); }
+
+    #no-speech {
+      display:none;
+      color:#ef4444; font-size:13px; text-align:center;
+      max-width:480px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas id="confetti-canvas" class="confetti-layer"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html">🏠</a>
+      <span class="page-title">🎧 DICTADO DE CUENTOS</span>
+    </div>
+
+    <div id="hud">
+      <div class="hud-box">
+        <div class="hud-label">Puntos</div>
+        <div class="hud-value" id="score">0</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">Racha</div>
+        <div class="hud-value" id="streak">🔥 0</div>
+      </div>
+    </div>
+
+    <div id="level-badge">NIVEL 1 — FRASES CORTAS</div>
+
+    <div id="story-card">
+      <div id="story-emoji">📖</div>
+      <div id="story-title">...</div>
+
+      <button id="listen-btn" onclick="playPhrase()">🔊 ESCUCHAR LA FRASE</button>
+      <div id="replay-hint">Puedes escucharla las veces que quieras</div>
+      <div id="no-speech">Tu navegador no permite reproducir audio por voz. Prueba con Chrome o Edge.</div>
+
+      <form id="answer-form" onsubmit="return checkAnswer(event)">
+        <input id="answer-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Escribe aquí lo que escuchaste..." />
+        <button id="check-btn" type="submit">✅ COMPROBAR</button>
+      </form>
+
+      <div id="correct-phrase"></div>
+      <div id="message">¡PRESIONA ESCUCHAR PARA COMENZAR!</div>
+    </div>
+
+    <button id="next-btn" onclick="nextPhrase()">SIGUIENTE ➡️</button>
+  </div>
+
+  <script>
+    /* ── Starfield background ── */
+    const bgC=document.getElementById('bg'),bgX=bgC.getContext('2d');
+    function rbg(){bgC.width=innerWidth;bgC.height=innerHeight;}
+    rbg();window.addEventListener('resize',rbg);
+    const stars=Array.from({length:160},()=>({x:Math.random(),y:Math.random(),r:.5+Math.random()*1.5,sp:.00008+Math.random()*.00015,tw:Math.random()*Math.PI*2}));
+    const bgF=['📖','🔊','✏️','🐺','🍎','👸'].map(c=>({t:c,x:Math.random(),y:Math.random(),sp:.0001+Math.random()*.0002,sz:13+Math.random()*16,a:.04+Math.random()*.07}));
+    function drawBg(){const W=bgC.width,H=bgC.height;bgX.fillStyle='#0f0f1a';bgX.fillRect(0,0,W,H);for(const s of stars){s.tw+=s.sp*60;bgX.globalAlpha=.4+Math.sin(s.tw)*.4;bgX.fillStyle='#fff';bgX.beginPath();bgX.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);bgX.fill();}for(const f of bgF){f.y-=f.sp;if(f.y<-.05)f.y=1.05;bgX.globalAlpha=f.a;bgX.fillStyle='#FFD700';bgX.font=`bold ${f.sz}px Arial`;bgX.textAlign='center';bgX.fillText(f.t,f.x*W,f.y*H);}bgX.globalAlpha=1;requestAnimationFrame(drawBg);}
+    drawBg();
+
+    /* ── Confetti ── */
+    const cfC=document.getElementById('confetti-canvas'),cfX=cfC.getContext('2d');
+    cfC.width=innerWidth;cfC.height=innerHeight;
+    window.addEventListener('resize',()=>{cfC.width=innerWidth;cfC.height=innerHeight;});
+    let cp=[];
+    function burst(){const cols=['#FFD700','#22c55e','#3b82f6','#ec4899','#f97316','#8b5cf6'];for(let i=0;i<80;i++)cp.push({x:innerWidth/2+(Math.random()-.5)*300,y:innerHeight*.38,vx:(Math.random()-.5)*10,vy:-7-Math.random()*9,sz:6+Math.random()*8,col:cols[~~(Math.random()*cols.length)],rot:Math.random()*360,rv:(Math.random()-.5)*14,life:1});requestAnimationFrame(animCf);}
+    function animCf(){cfX.clearRect(0,0,cfC.width,cfC.height);cp=cp.filter(p=>p.life>.02);for(const p of cp){p.vy+=.38;p.x+=p.vx;p.y+=p.vy;p.rot+=p.rv;p.life-=.018;cfX.save();cfX.globalAlpha=p.life;cfX.translate(p.x,p.y);cfX.rotate(p.rot*Math.PI/180);cfX.fillStyle=p.col;cfX.fillRect(-p.sz/2,-p.sz/2,p.sz,p.sz*.55);cfX.restore();}if(cp.length>0)requestAnimationFrame(animCf);else cfX.clearRect(0,0,cfC.width,cfC.height);}
+
+    /* ── Famous kids' story phrases, grouped by level (short → long) ── */
+    const LEVELS=[
+      {
+        label:'1', desc:'FRASES CORTAS',
+        phrases:[
+          {emoji:'🐷', title:'Los Tres Cerditos', text:'Soplaré y soplaré.'},
+          {emoji:'🐺', title:'Caperucita Roja', text:'Abuela, ¡qué ojos tan grandes!'},
+          {emoji:'🍎', title:'Blancanieves', text:'Espejito, espejito.'},
+          {emoji:'👦', title:'Pinocho', text:'Me crece la nariz.'},
+          {emoji:'🐢', title:'La Tortuga y la Liebre', text:'Despacio, pero seguro.'},
+        ]
+      },
+      {
+        label:'2', desc:'FRASES MEDIANAS',
+        phrases:[
+          {emoji:'👧', title:'Ricitos de Oro', text:'Alguien ha dormido en mi cama.'},
+          {emoji:'👑', title:'La Cenicienta', text:'A medianoche todo volverá a ser como antes.'},
+          {emoji:'🦆', title:'El Patito Feo', text:'Se convirtió en un hermoso cisne.'},
+          {emoji:'🥾', title:'El Gato con Botas', text:'El gato usaba unas botas mágicas.'},
+          {emoji:'🌾', title:'Hansel y Gretel', text:'Fueron dejando migas de pan en el camino.'},
+        ]
+      },
+      {
+        label:'3', desc:'FRASES LARGAS',
+        phrases:[
+          {emoji:'👸', title:'La Bella Durmiente', text:'Un beso de amor verdadero rompió el hechizo.'},
+          {emoji:'🌱', title:'Juan y los Frijoles Mágicos', text:'La planta creció hasta llegar a las nubes.'},
+          {emoji:'🐸', title:'El Príncipe Rana', text:'La princesa besó a la rana y se convirtió en príncipe.'},
+          {emoji:'🕰️', title:'Cenicienta', text:'Debía volver antes de que el reloj marcara la medianoche.'},
+          {emoji:'🌟', title:'Pinocho', text:'Un día soñó con convertirse en un niño de verdad.'},
+        ]
+      },
+    ];
+    const ADVANCE=3;
+
+    let score=0, streak=0, levelIdx=0, correctInLevel=0;
+    let usedIdx=[];
+    let current=null, answered=true, speaking=false;
+
+    const canSpeak = 'speechSynthesis' in window;
+    if(!canSpeak){
+      document.getElementById('listen-btn').disabled=true;
+      document.getElementById('no-speech').style.display='block';
+    }
+
+    function pickPhrase(){
+      const pool=LEVELS[levelIdx].phrases;
+      if(usedIdx.length>=pool.length) usedIdx=[];
+      let idx;
+      do { idx=Math.floor(Math.random()*pool.length); } while(usedIdx.includes(idx));
+      usedIdx.push(idx);
+      return pool[idx];
+    }
+
+    /* ── Pick the most natural-sounding Latin American Spanish voice available ──
+       Priority: known high-quality neural voices (Google/Microsoft "Natural"/"Online"),
+       then any es-MX/es-US/es-419/es-AR/es-CO voice, then any Spanish voice. ── */
+    function pickSpanishVoice(){
+      const voices=window.speechSynthesis.getVoices();
+      if(!voices.length) return null;
+
+      const latamLangs=['es-mx','es-us','es-419','es-ar','es-co'];
+      const niceNameHints=['google','natural','online','paulina','juan','sabina','dalia','esperanza'];
+
+      const score=v=>{
+        const lang=(v.lang||'').toLowerCase();
+        const name=(v.name||'').toLowerCase();
+        let s=0;
+        if(latamLangs.includes(lang)) s+=10;
+        else if(lang.startsWith('es')) s+=3;
+        if(niceNameHints.some(h=>name.includes(h))) s+=5;
+        return s;
+      };
+
+      const esVoices=voices.filter(v=>v.lang && v.lang.toLowerCase().startsWith('es'));
+      if(!esVoices.length) return null;
+      return esVoices.sort((a,b)=>score(b)-score(a))[0];
+    }
+
+    function speak(text){
+      if(!canSpeak) return;
+      window.speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(text);
+      const voice=pickSpanishVoice();
+      u.lang = voice ? voice.lang : 'es-MX';
+      u.rate=0.92;
+      u.pitch=1.0;
+      if(voice) u.voice=voice;
+      const btn=document.getElementById('listen-btn');
+      speaking=true; btn.classList.add('speaking');
+      u.onend=()=>{ speaking=false; btn.classList.remove('speaking'); };
+      u.onerror=()=>{ speaking=false; btn.classList.remove('speaking'); };
+      window.speechSynthesis.speak(u);
+    }
+
+    function playPhrase(){
+      if(!current) return;
+      speak(current.text);
+    }
+
+    function normalize(s){
+      return s.trim().toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g,'') // strip accents (é→e, ñ stays as base n+~ but we keep ñ below)
+        .replace(/[.,;:!¡?¿"“”]/g,'')
+        .replace(/\s+/g,' ');
+    }
+
+    function nextPhrase(){
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('story-card').className='';
+      document.getElementById('correct-phrase').textContent='';
+      const input=document.getElementById('answer-input');
+      input.value=''; input.className=''; input.disabled=false;
+      document.getElementById('check-btn').disabled=false;
+
+      current=pickPhrase();
+      answered=false;
+      document.getElementById('story-emoji').textContent=current.emoji;
+      document.getElementById('story-title').textContent=current.title;
+      setMsg('ESCUCHA CON ATENCIÓN Y ESCRIBE LA FRASE','');
+
+      setTimeout(()=>{ playPhrase(); input.focus(); }, 350);
+    }
+
+    function checkAnswer(e){
+      if(e) e.preventDefault();
+      if(answered || !current) return false;
+      answered=true;
+
+      const input=document.getElementById('answer-input');
+      const ok = normalize(input.value) === normalize(current.text);
+      document.getElementById('check-btn').disabled=true;
+      input.disabled=true;
+
+      if(ok){
+        input.classList.add('correct');
+        document.getElementById('story-card').classList.add('correct');
+        streak++; const bonus=streak>=3?20:10; score+=bonus;
+        document.getElementById('score').textContent=score;
+        document.getElementById('streak').textContent=`🔥 ${streak}`;
+        const msg=streak>=5?`🏆 ¡RACHA DE ${streak}! +${bonus} PTS`:
+                  streak>=3?`⭐ ¡GENIAL! RACHA DE ${streak}! +${bonus} PTS`:
+                            `✅ ¡PERFECTO! ESCRIBISTE BIEN LA FRASE`;
+        setMsg(msg,'correct');
+        burst();
+        correctInLevel++;
+        if(correctInLevel>=ADVANCE && levelIdx<LEVELS.length-1){
+          levelIdx++; correctInLevel=0; usedIdx=[]; updateBadge();
+          setTimeout(()=>setMsg(`🚀 ¡NIVEL ${LEVELS[levelIdx].label}! ${LEVELS[levelIdx].desc}`,'correct'),900);
+        }
+      } else {
+        input.classList.add('wrong');
+        document.getElementById('story-card').classList.add('wrong');
+        streak=0; document.getElementById('streak').textContent='🔥 0';
+        setMsg('❌ NO ES EXACTO — ESCUCHA LA FRASE CORRECTA','wrong');
+        document.getElementById('correct-phrase').innerHTML=`Frase correcta: <b>${current.text}</b>`;
+      }
+      document.getElementById('next-btn').style.display='inline-block';
+      return false;
+    }
+
+    function updateBadge(){
+      const l=LEVELS[levelIdx];
+      document.getElementById('level-badge').textContent=`NIVEL ${l.label} — ${l.desc}`;
+    }
+    function setMsg(t,c){const e=document.getElementById('message');e.textContent=t;e.className=c;}
+
+    /* Some browsers (Chrome) load the voice list asynchronously — warm it up first */
+    if(canSpeak){
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged=()=>{};
+    }
+
+    nextPhrase();
+  </script>
+</body>
+</html>

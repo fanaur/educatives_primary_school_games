@@ -519,6 +519,32 @@
       el.textContent=text; el.className=cls;
     }
 
+    /* ── Pick the most natural-sounding Latin American Spanish voice available ──
+       Same logic used across all MicaGames voice games (see letters/dictado.html):
+       priority to known high-quality neural voices (Google/Microsoft "Natural"/"Online"),
+       then any es-MX/es-US/es-419/es-AR/es-CO voice, then any Spanish voice. ── */
+    function pickSpanishVoice(){
+      const voices = window.speechSynthesis.getVoices();
+      if(!voices.length) return null;
+
+      const latamLangs = ['es-mx','es-us','es-419','es-ar','es-co'];
+      const niceNameHints = ['google','natural','online','paulina','juan','sabina','dalia','esperanza'];
+
+      const score = v => {
+        const lang = (v.lang||'').toLowerCase();
+        const name = (v.name||'').toLowerCase();
+        let s = 0;
+        if(latamLangs.includes(lang)) s += 10;
+        else if(lang.startsWith('es')) s += 3;
+        if(niceNameHints.some(h => name.includes(h))) s += 5;
+        return s;
+      };
+
+      const esVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('es'));
+      if(!esVoices.length) return null;
+      return esVoices.sort((a,b) => score(b)-score(a))[0];
+    }
+
     /* ── Speak country name in Spanish ── */
     function speakCountry(){
       if(!current) return;
@@ -532,21 +558,10 @@
       label.textContent = 'LEYENDO...';
 
       const utterance = new SpeechSynthesisUtterance(current.name);
-      utterance.rate  = 0.72;   // un poco más despacio
+      utterance.rate  = 0.85;
       utterance.pitch = 1.0;
 
-      /* Preferencia de voces: latino primero, luego cualquier español */
-      const voices = window.speechSynthesis.getVoices();
-      const latinLangs = ['es-MX','es-AR','es-CO','es-CL','es-US','es-419'];
-      let picked =
-        /* 1. Voz latina por nombre conocido (macOS: Paulina, mónica latinoam.) */
-        voices.find(v => /paulina|diego|jorge|carlos|juan|lucia/i.test(v.name)) ||
-        /* 2. Cualquier locale latino */
-        voices.find(v => latinLangs.some(l => v.lang === l)) ||
-        /* 3. Cualquier español */
-        voices.find(v => v.lang.startsWith('es')) ||
-        null;
-
+      const picked = pickSpanishVoice();
       if(picked){
         utterance.voice = picked;
         utterance.lang  = picked.lang;
@@ -568,6 +583,7 @@
 
     /* Load voices (some browsers load them async) */
     if(window.speechSynthesis && window.speechSynthesis.onvoiceschanged !== undefined){
+      window.speechSynthesis.getVoices();
       window.speechSynthesis.onvoiceschanged = () => {};
     }
 
