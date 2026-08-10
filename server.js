@@ -28,7 +28,7 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
   const { networkInterfaces } = require('os');
   const nets = networkInterfaces();
-  console.log(`\n🎮  MicaGames server running\n`);
+  console.log(`\n🎮  Educatives Primary School Games server running\n`);
   console.log(`   Local:   http://localhost:${PORT}`);
   for (const name of Object.keys(nets))
     for (const net of nets[name])
