@@ -132,8 +132,8 @@
       background:#ef4444; opacity:.7;
     }
     .pin.selected .pin-body {
-      background:linear-gradient(180deg,#fef3c7 0%,#fde68a 60%,#fef3c7 100%);
-      box-shadow:0 0 16px rgba(255,215,0,.7), 0 3px 8px rgba(0,0,0,.4);
+      background:linear-gradient(180deg,#fecaca 0%,#ef4444 60%,#fecaca 100%);
+      box-shadow:0 0 16px rgba(239,68,68,.8), 0 3px 8px rgba(0,0,0,.4);
     }
     .pin:hover:not(.knocked) { transform:translateX(-50%) scale(1.08); }
     .pin.knocked {
@@ -358,6 +358,12 @@
         pin.classList.add('selected');
       }
       document.getElementById('sel-num').textContent=selected.size;
+      updateBlank();
+    }
+
+    function updateBlank(){
+      const blank=document.querySelector('#equation .blank');
+      if(blank) blank.textContent = selected.size>0 ? selected.size : '?';
     }
 
     function resetPins(){
