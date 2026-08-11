@@ -160,8 +160,10 @@
       background:radial-gradient(circle at 35% 30%, #93c5fd, #1d4ed8 60%, #1e3a8a);
       box-shadow:0 4px 10px rgba(0,0,0,.5);
       position:relative;
-      transition:transform 1s cubic-bezier(.5,0,.5,1);
+      cursor:pointer;
+      transition:transform 1s cubic-bezier(.5,0,.5,1), box-shadow .15s;
     }
+    #ball:hover { box-shadow:0 4px 16px rgba(59,130,246,.6); }
     #ball::before, #ball::after, #ball .hole3 {
       content:''; position:absolute; width:5px; height:5px; border-radius:50%;
       background:rgba(0,0,0,.5); top:14px;
@@ -236,7 +238,7 @@
 
     <div id="lane-wrap">
       <div id="pin-rack"></div>
-      <div id="ball-lane"><div id="ball"></div></div>
+      <div id="ball-lane"><div id="ball" onclick="rollBall()"></div></div>
     </div>
 
     <div id="selected-count">Bolos seleccionados: <b id="sel-num">0</b></div>
