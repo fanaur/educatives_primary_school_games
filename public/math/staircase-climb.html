@@ -275,7 +275,7 @@
       { label:'5', desc:'¡SÚPER ESCALERA!',   totalMin:15, totalMax:30 },
     ];
     const ADVANCE=4;
-    const VISUAL_STEPS=8; // decorative step count, independent of the numeric totals
+    const MIN_STEP_H=14, MAX_STEP_H=190; // px — real step heights are scaled to fit this range regardless of total
 
     let score=0, streak=0, levelIdx=0, correctInLevel=0;
     let total=10, climbed=4, missing=6, answered=false;
@@ -287,55 +287,57 @@
       missing=total-climbed;
     }
 
+    /* Height of the step at 1-based position `n` (n=1..total) — draws EXACTLY
+       `total` steps, one per unit, scaled to fit the scene regardless of size. */
+    function stepHeight(n){
+      if(total<=1) return MAX_STEP_H;
+      return MIN_STEP_H + (n-1)*(MAX_STEP_H-MIN_STEP_H)/(total-1);
+    }
+
     function renderStaircase(){
       const rack=document.getElementById('staircase');
       rack.innerHTML='';
-      const stepW=100/VISUAL_STEPS;
-      for(let i=0;i<VISUAL_STEPS;i++){
+      const stepW=100/total;
+      for(let n=1; n<=total; n++){
         const step=document.createElement('div');
         step.className='stair-step';
-        const h=18+i*20;
-        step.style.height=h+'px';
-        step.style.left=(i*stepW)+'%';
-        step.style.width=(stepW+1)+'%';
+        step.style.height=stepHeight(n)+'px';
+        step.style.left=((n-1)*stepW)+'%';
+        step.style.width=(stepW+0.6)+'%';
         rack.appendChild(step);
       }
-      const topH=18+(VISUAL_STEPS-1)*20+3;
-      document.getElementById('goal-flag').style.left='97%';
-      document.getElementById('goal-flag').style.bottom=(topH+4)+'px';
-      positionClimber(climbed/total, false);
+      document.getElementById('goal-flag').style.left=((total-1)*stepW + stepW/2)+'%';
+      document.getElementById('goal-flag').style.bottom=(stepHeight(total)+4)+'px';
+      positionClimberAtCount(climbed, false);
     }
 
-    function fracToStepIdx(frac){
-      return Math.min(VISUAL_STEPS-1, Math.floor(frac*VISUAL_STEPS));
-    }
-
-    function positionClimberAtStep(stepIdx, animate){
+    /* Position the climber standing exactly on step number `n` (n=0 = the
+       ground, before the first step; n=total = standing on the top step). */
+    function positionClimberAtCount(n, animate){
       const climber=document.getElementById('climber');
       climber.style.transition = animate ? '' : 'none';
-      const stepH=18+stepIdx*20;
-      const stepW=100/VISUAL_STEPS;
-      climber.style.left=(stepIdx*stepW + stepW/2)+'%';
-      climber.style.bottom=(stepH+2)+'px';
+      const stepW=100/total;
+      if(n<=0){
+        climber.style.left=(stepW/2)+'%';
+        climber.style.bottom='2px';
+      } else {
+        climber.style.left=((n-1)*stepW + stepW/2)+'%';
+        climber.style.bottom=(stepHeight(n)+2)+'px';
+      }
       if(!animate) climber.offsetHeight; // force reflow before re-enabling transitions
       climber.style.transition='';
     }
 
-    function positionClimber(frac, animate){
-      positionClimberAtStep(fracToStepIdx(frac), animate);
-    }
-
-    /* Walk the climber up one visual step at a time, instead of one smooth jump. */
+    /* Walk the climber up one real step at a time — exactly `missing` hops. */
     function climbToTop(onDone){
       const climber=document.getElementById('climber');
-      let stepIdx=fracToStepIdx(climbed/total);
-      const finalIdx=VISUAL_STEPS-1;
+      let n=climbed;
       const STEP_MS=220;
 
       function hop(){
-        if(stepIdx>=finalIdx){ onDone && onDone(); return; }
-        stepIdx++;
-        positionClimberAtStep(stepIdx, true);
+        if(n>=total){ onDone && onDone(); return; }
+        n++;
+        positionClimberAtCount(n, true);
         climber.classList.add('stepping');
         setTimeout(()=>climber.classList.remove('stepping'), STEP_MS);
         setTimeout(hop, STEP_MS);
