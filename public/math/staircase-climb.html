@@ -151,40 +151,28 @@
     #message.correct { color:#22c55e; text-shadow:0 0 12px rgba(34,197,94,.5); }
     #message.wrong   { color:#ef4444; text-shadow:0 0 12px rgba(239,68,68,.5); }
 
-    /* ── Answer buttons ── */
-    #answers {
-      display:grid; grid-template-columns:repeat(2,1fr);
-      gap:12px; width:100%;
+    /* ── Keypad ── */
+    #keypad-wrap { display:flex; flex-direction:column; align-items:center; gap:14px; width:100%; }
+    #keypad-display {
+      min-width:120px; min-height:56px; padding:8px 20px;
+      background:rgba(255,255,255,.06); border:3px solid rgba(255,255,255,.18);
+      border-radius:16px; color:#FFD700; font-size:2rem; font-weight:bold;
+      text-align:center; transition:border-color .15s, background .15s, color .15s;
     }
-    .ans-btn {
-      padding:18px 10px;
-      font-size:2rem; font-family:inherit; font-weight:bold; color:#fff;
-      background:rgba(59,130,246,.12);
-      border:3px solid rgba(59,130,246,.35);
-      border-radius:20px; cursor:pointer;
-      transition:transform .12s, background .12s, border-color .12s, box-shadow .12s;
-      position:relative; overflow:hidden;
+    #keypad-display.correct-fill { border-color:#22c55e; background:rgba(34,197,94,.15); color:#4ade80; }
+    #keypad-display.wrong-fill   { border-color:#ef4444; background:rgba(239,68,68,.15); color:#f87171; animation:shake .4s ease; }
+    #keypad { display:grid; grid-template-columns:repeat(3,64px); gap:10px; }
+    .key-btn {
+      width:64px; height:56px;
+      font-size:1.4rem; font-family:inherit; font-weight:bold; color:#fff;
+      background:rgba(59,130,246,.12); border:3px solid rgba(59,130,246,.35);
+      border-radius:14px; cursor:pointer;
+      transition:transform .1s, background .12s, border-color .12s;
     }
-    .ans-btn::before {
-      content:''; position:absolute; inset:0;
-      background:linear-gradient(135deg,rgba(255,255,255,.06) 0%,transparent 60%);
-      border-radius:17px;
-    }
-    .ans-btn:hover:not(:disabled) {
-      transform:scale(1.05) translateY(-3px);
-      background:rgba(59,130,246,.28);
-      border-color:#60a5fa;
-      box-shadow:0 8px 28px rgba(59,130,246,.4);
-    }
-    .ans-btn:disabled { cursor:default; }
-    .ans-btn.correct-ans {
-      background:rgba(34,197,94,.28); border-color:#22c55e;
-      box-shadow:0 0 24px rgba(34,197,94,.5); transform:scale(1.06);
-    }
-    .ans-btn.wrong-ans {
-      background:rgba(239,68,68,.22); border-color:#ef4444;
-      animation:shake .4s ease;
-    }
+    .key-btn:hover:not(:disabled) { transform:scale(1.06); background:rgba(59,130,246,.28); border-color:#60a5fa; }
+    .key-btn:disabled { opacity:.5; cursor:default; }
+    .key-btn.key-back { background:rgba(239,68,68,.14); border-color:rgba(239,68,68,.4); }
+    .key-btn.key-enter { background:linear-gradient(90deg,#FFD700,#F59E0B); border:none; color:#1a1a1a; }
     @keyframes shake {
       0%,100%{ transform:translateX(0); }
       20%{ transform:translateX(-8px); }
@@ -241,7 +229,23 @@
 
     <div id="progress-label"></div>
 
-    <div id="answers"></div>
+    <div id="keypad-wrap">
+      <div id="keypad-display">_</div>
+      <div id="keypad">
+        <button class="key-btn" data-k="1">1</button>
+        <button class="key-btn" data-k="2">2</button>
+        <button class="key-btn" data-k="3">3</button>
+        <button class="key-btn" data-k="4">4</button>
+        <button class="key-btn" data-k="5">5</button>
+        <button class="key-btn" data-k="6">6</button>
+        <button class="key-btn" data-k="7">7</button>
+        <button class="key-btn" data-k="8">8</button>
+        <button class="key-btn" data-k="9">9</button>
+        <button class="key-btn key-back" data-k="back">⌫</button>
+        <button class="key-btn" data-k="0">0</button>
+        <button class="key-btn key-enter" data-k="enter">✓</button>
+      </div>
+    </div>
     <div id="message">¿CUÁNTOS ESCALONES LE FALTAN PARA LLEGAR ARRIBA?</div>
 
     <button id="next-btn" onclick="nextQ()">SIGUIENTE ➡️</button>
@@ -354,41 +358,41 @@
         `Escalón <b>${climbed}</b> de <b>${total}</b>`;
     }
 
-    function renderAnswers(){
-      const cont=document.getElementById('answers');
-      cont.innerHTML='';
-      const opts=new Set([missing]);
-      const deltas=[1,2,3,4];
-      let attempts=0;
-      while(opts.size<4 && attempts<200){
-        attempts++;
-        const d=deltas[Math.floor(Math.random()*deltas.length)];
-        const sign=Math.random()<.5?1:-1;
-        const w=missing+sign*d;
-        if(w>=1 && w!==missing) opts.add(w);
-      }
-      for(let d=1; opts.size<4; d++){
-        if(missing+d>=1) opts.add(missing+d);
-        if(opts.size<4 && missing-d>=1) opts.add(missing-d);
-      }
-      [...opts].sort(()=>Math.random()-.5).forEach(val=>{
-        const btn=document.createElement('button');
-        btn.className='ans-btn';
-        btn.textContent=val;
-        btn.addEventListener('click',()=>checkAnswer(btn,val));
-        cont.appendChild(btn);
+    let typedValue='';
+    function initKeypad(onSubmit){
+      document.getElementById('keypad').addEventListener('click', e=>{
+        const btn=e.target.closest('.key-btn');
+        if(!btn || btn.disabled) return;
+        const k=btn.dataset.k;
+        if(k==='back'){ typedValue=typedValue.slice(0,-1); }
+        else if(k==='enter'){ if(typedValue!=='') onSubmit(Number(typedValue)); return; }
+        else { if(typedValue.length<2) typedValue+=k; }
+        updateKeypadDisplay();
       });
     }
+    function updateKeypadDisplay(){
+      document.getElementById('keypad-display').textContent = typedValue===''?'_':typedValue;
+    }
+    function resetKeypad(){
+      typedValue='';
+      updateKeypadDisplay();
+      document.getElementById('keypad-display').className='';
+      document.querySelectorAll('.key-btn').forEach(b=>b.disabled=false);
+    }
+    function setKeypadEnabled(enabled){
+      document.querySelectorAll('.key-btn').forEach(b=>b.disabled=!enabled);
+    }
 
-    function checkAnswer(btn,val){
+    function checkAnswer(val){
       if(answered) return;
       answered=true;
-      document.querySelectorAll('.ans-btn').forEach(b=>b.disabled=true);
+      setKeypadEnabled(false);
 
       const blank=document.querySelector('#equation .blank');
+      const disp=document.getElementById('keypad-display');
 
       if(val===missing){
-        btn.classList.add('correct-ans');
+        disp.classList.add('correct-fill');
         if(blank){ blank.textContent=val; blank.classList.add('filled','correct-fill'); }
         document.getElementById('prompt-card').classList.add('correct');
         climbToTop(burst);
@@ -406,7 +410,7 @@
         }
         document.getElementById('next-btn').style.display='inline-block';
       } else {
-        btn.classList.add('wrong-ans');
+        disp.classList.add('wrong-fill');
         if(blank){ blank.classList.add('wrong-fill'); }
         document.getElementById('prompt-card').classList.add('wrong');
         const climber=document.getElementById('climber');
@@ -418,10 +422,10 @@
           answered=false;
           document.getElementById('prompt-card').className='';
           if(blank){ blank.classList.remove('wrong-fill'); }
-          document.querySelectorAll('.ans-btn').forEach(b=>{
-            b.disabled=false;
-            b.classList.remove('wrong-ans','correct-ans');
-          });
+          typedValue='';
+          updateKeypadDisplay();
+          disp.classList.remove('wrong-fill');
+          setKeypadEnabled(true);
           setMsg('¿CUÁNTOS ESCALONES LE FALTAN PARA LLEGAR ARRIBA?','');
         },900);
       }
@@ -435,7 +439,7 @@
       genQuestion();
       renderStaircase();
       renderPrompt();
-      renderAnswers();
+      resetKeypad();
       setMsg('¿CUÁNTOS ESCALONES LE FALTAN PARA LLEGAR ARRIBA?','');
     }
 
@@ -445,6 +449,7 @@
     }
     function setMsg(t,c){const e=document.getElementById('message');e.textContent=t;e.className=c;}
 
+    initKeypad(checkAnswer);
     nextQ();
   </script>
 </body>
