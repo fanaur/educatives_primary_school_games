@@ -75,6 +75,12 @@ Esto levanta el servidor en `http://localhost:3000` igual que corriéndolo nativ
 **Dictado de Números** — Escucha el número y escríbelo con las cifras correctas.
 ![Dictado de Números](public/screenshots/math-number-dictation.png)
 
+**Sube la Escalera** — Averigua cuántos escalones le faltan al personaje para llegar arriba.
+![Sube la Escalera](public/screenshots/math-staircase-climb.png)
+
+**Abre el Candado** — Resuelve 4 sumas para descubrir la combinación y abrir el candado.
+![Abre el Candado](public/screenshots/math-padlock-math.png)
+
 ### 🔤 Letras
 
 **¡Empareja las Letras!** — Voltea las cartas y empareja las letras mayúsculas con las minúsculas.
