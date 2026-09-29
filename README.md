@@ -104,6 +104,9 @@ Esto levanta el servidor en `http://localhost:3000` igual que corriéndolo nativ
 **La Receta** — Lee la receta y busca los ingredientes correctos para cocinar la comida.
 ![La Receta](public/screenshots/letters-receta.png)
 
+**Silabario Vivo** — Practica las sílabas más usadas del español con fichas para dar vuelta y un desafío de opción múltiple.
+![Silabario Vivo](public/screenshots/letters-silabario.png)
+
 **Lee por Sílabas** — Lee la palabra separada en sílabas (CA - SA), toca cada sílaba para agrandarla y elige el dibujo que corresponde.
 ![Lee por Sílabas](public/screenshots/letters-lee-silabas.png)
 
