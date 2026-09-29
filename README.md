@@ -104,6 +104,9 @@ Esto levanta el servidor en `http://localhost:3000` igual que corriéndolo nativ
 **La Receta** — Lee la receta y busca los ingredientes correctos para cocinar la comida.
 ![La Receta](public/screenshots/letters-receta.png)
 
+**Lee por Sílabas** — Lee la palabra separada en sílabas (CA - SA), toca cada sílaba para agrandarla y elige el dibujo que corresponde.
+![Lee por Sílabas](public/screenshots/letters-lee-silabas.png)
+
 ### 🔬 Ciencia
 
 **Ordena los Planetas** — Ordena los planetas del sistema solar y obsérvalos orbitar.
