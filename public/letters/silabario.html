@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Silabario Vivo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0f0f1a;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+    overflow-x: hidden;
+  }
+
+  canvas#bg {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+  }
+
+  .back-btn {
+    position: fixed;
+    top: 20px;
+    left: 24px;
+    z-index: 10;
+    background: rgba(255,255,255,0.08);
+    border: 2px solid rgba(255,215,0,0.35);
+    color: #FFD700;
+    font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 8px 18px;
+    border-radius: 30px;
+    cursor: pointer;
+    text-decoration: none;
+    letter-spacing: 1px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .back-btn:hover { background: rgba(255,215,0,0.15); border-color: #FFD700; }
+
+  .content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 90px 18px 40px;
+  }
+
+  .title { text-align: center; }
+  .title h1 {
+    font-size: 34px;
+    color: #FFD700;
+    text-shadow: 0 0 30px rgba(255,215,0,0.5), 2px 2px 0 #b8860b;
+    letter-spacing: 2px;
+  }
+  .title p { color: #aac4e0; font-size: 14px; margin-top: 6px; letter-spacing: 1px; }
+
+  .stats-row { display: flex; gap: 10px; width: 100%; }
+  .stat {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border: 2px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+  .stat .num { display: block; color: #FFD700; font-size: 20px; font-weight: bold; }
+  .stat .lab { display: block; color: #94a3b8; font-size: 10px; letter-spacing: 1px; margin-top: 2px; }
+
+  .modes {
+    display: flex; width: 100%; gap: 8px;
+    background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 5px;
+  }
+  .modes button {
+    flex: 1; border: none; background: transparent; color: #94a3b8;
+    font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+    font-weight: bold; font-size: 13px; letter-spacing: 1px;
+    padding: 10px 6px; border-radius: 999px; cursor: pointer;
+  }
+  .modes button.active { background: linear-gradient(90deg,#FFD700,#F59E0B); color: #1a1a1a; }
+
+  .chips { display: flex; gap: 6px; overflow-x: auto; width: 100%; padding-bottom: 4px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: 0 0 auto; border: 2px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05);
+    color: #cbd5e1; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: bold;
+    letter-spacing: 1px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+    font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+  }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .chip.active { background: #FFD700; color: #1a1a1a; border-color: #FFD700; }
+
+  /* CARDS MODE */
+  .stage { perspective: 1200px; width: 100%; }
+  .card { position: relative; height: 210px; border-radius: 20px; cursor: pointer; transform-style: preserve-3d; transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+  .card.flipped { transform: rotateY(180deg); }
+  .face {
+    position: absolute; inset: 0; backface-visibility: hidden; border-radius: 20px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 2px solid rgba(255,255,255,0.15); padding: 18px; text-align: center;
+  }
+  .face.front { background: linear-gradient(135deg, var(--vc1,#3B82F6), var(--vc2,#1D4ED8)); box-shadow: 0 12px 40px -12px rgba(0,0,0,.6); }
+  .face.front .syl { font-size: 64px; font-weight: bold; color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.25); letter-spacing: 2px; }
+  .face.front .hint { color: rgba(255,255,255,.85); font-size: 12px; margin-top: 10px; letter-spacing: 1px; }
+  .face.back { background: rgba(255,255,255,0.06); transform: rotateY(180deg); gap: 14px; }
+  .face.back .word { font-size: 32px; font-weight: bold; color: #fff; letter-spacing: 1px; }
+  .face.back .word mark { background: transparent; color: var(--vc1,#FFD700); }
+  .face.back .say {
+    border: 2px solid rgba(255,215,0,0.4); background: rgba(255,215,0,0.08); border-radius: 999px;
+    padding: 8px 16px; font-size: 12px; font-weight: bold; letter-spacing: 1px; color: #FFD700;
+    cursor: pointer; font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+  }
+
+  .nav-row { display: flex; gap: 10px; justify-content: center; width: 100%; }
+  .icon-btn {
+    border: 2px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #FFD700;
+    border-radius: 12px; width: 46px; height: 46px; font-size: 16px; cursor: pointer;
+  }
+  .action-row { display: flex; gap: 10px; width: 100%; }
+  .action-row button {
+    flex: 1; border: none; border-radius: 14px; padding: 14px 8px; font-weight: bold;
+    font-family: 'Arial Rounded MT Bold', Arial, sans-serif; font-size: 13px; letter-spacing: 1px;
+    cursor: pointer; color: #fff;
+  }
+  .btn-retry { background: rgba(255,255,255,0.12); }
+  .btn-know { background: linear-gradient(90deg,#22C55E,#15803D); }
+
+  .dots { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; width: 100%; }
+  .pdot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.15); }
+  .pdot.known { background: var(--dc,#22C55E); }
+  .pdot.current { outline: 2px solid #FFD700; outline-offset: 1px; }
+
+  .reset-line button {
+    background: none; border: none; color: #64748b; font-size: 11px; letter-spacing: 1px;
+    text-decoration: underline; cursor: pointer; font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+  }
+
+  /* QUIZ MODE */
+  .quiz-card {
+    width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.12);
+    border-radius: 20px; padding: 30px 16px; text-align: center;
+  }
+  .quiz-prompt { color: #94a3b8; font-size: 12px; letter-spacing: 1px; margin-bottom: 10px; }
+  .quiz-word { font-size: 36px; font-weight: bold; color: #fff; letter-spacing: 1px; word-break: break-word; }
+  .quiz-word .blank { display: inline-block; min-width: 1.4em; border-bottom: 4px solid #FFD700; color: transparent; }
+  .quiz-word mark { background: transparent; color: #FFD700; }
+  .quiz-feedback { min-height: 18px; font-weight: bold; margin-top: 10px; font-size: 13px; letter-spacing: .5px; }
+  .quiz-feedback.good { color: #22C55E; }
+  .quiz-feedback.bad { color: #f87171; }
+  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+  .opt {
+    border: 2px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); border-radius: 14px;
+    padding: 18px 8px; font-size: 22px; font-weight: bold; cursor: pointer; color: #fff;
+    font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+  }
+  .opt.correct { border-color: #22C55E; background: rgba(34,197,94,0.18); }
+  .opt.wrong { border-color: #f87171; background: rgba(248,113,113,0.18); }
+  .opt:disabled { cursor: default; }
+
+  .footer { color: #334155; font-size: 11px; letter-spacing: 1px; text-align: center; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <a class="back-btn" href="index.html">← VOLVER</a>
+
+  <div class="content">
+    <div class="title">
+      <h1>🔤 SILABARIO VIVO 🔤</h1>
+      <p>¡PRACTICA LAS 50 SÍLABAS MÁS USADAS DEL ESPAÑOL!</p>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat"><span class="num" id="statKnown">0/50</span><span class="lab">APRENDIDAS</span></div>
+      <div class="stat"><span class="num" id="statScore">0</span><span class="lab">ACIERTOS</span></div>
+      <div class="stat"><span class="num" id="statStreak">0</span><span class="lab">RACHA</span></div>
+    </div>
+
+    <div class="modes">
+      <button id="modeCards" class="active">🃏 FICHAS</button>
+      <button id="modeQuiz">🎯 DESAFÍO</button>
+    </div>
+
+    <div class="chips" id="chips"></div>
+
+    <div id="cardsView" style="width:100%; display:flex; flex-direction:column; align-items:center; gap:16px;">
+      <div class="stage">
+        <div class="card" id="card">
+          <div class="face front" id="faceFront">
+            <div class="syl" id="sylText">de</div>
+            <div class="hint">TOCÁ PARA VER UNA PALABRA</div>
+          </div>
+          <div class="face back" id="faceBack">
+            <div class="word" id="wordText"></div>
+            <button class="say" id="sayBtn" type="button">🔊 ESCUCHAR</button>
+          </div>
+        </div>
+      </div>
+      <div class="nav-row">
+        <button class="icon-btn" id="prevBtn" title="Anterior">⬅️</button>
+        <button class="icon-btn" id="shuffleBtn" title="Mezclar">🔀</button>
+        <button class="icon-btn" id="nextBtn" title="Siguiente">➡️</button>
+      </div>
+      <div class="action-row">
+        <button class="btn-retry" id="retryBtn" type="button">🔁 PRACTICAR MÁS</button>
+        <button class="btn-know" id="knowBtn" type="button">✅ ¡LA SÉ!</button>
+      </div>
+      <div class="dots" id="dots"></div>
+      <div class="reset-line"><button id="resetBtn" type="button">REINICIAR PROGRESO</button></div>
+    </div>
+
+    <div id="quizView" style="width:100%; display:flex; flex-direction:column; align-items:center; gap:14px;" hidden>
+      <div class="quiz-card">
+        <p class="quiz-prompt">¿QUÉ SÍLABA COMPLETA LA PALABRA?</p>
+        <div class="quiz-word" id="quizWord"></div>
+        <div class="quiz-feedback" id="quizFeedback">&nbsp;</div>
+      </div>
+      <div class="options" id="quizOptions"></div>
+    </div>
+
+    <div class="footer">TU PROGRESO SE GUARDA EN ESTE DISPOSITIVO</div>
+  </div>
+
+  <script>
+    /* ── Starfield background, same as index.html ── */
+    const canvas = document.getElementById('bg');
+    const ctx = canvas.getContext('2d');
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    resize();
+    window.addEventListener('resize', resize);
+    const stars = Array.from({ length: 140 }, () => ({
+      x: Math.random(), y: Math.random(), r: 0.5 + Math.random() * 1.5,
+      speed: 0.00008 + Math.random() * 0.00015, twinkle: Math.random() * Math.PI * 2,
+    }));
+    function drawBg() {
+      const W = canvas.width, H = canvas.height;
+      ctx.fillStyle = '#0f0f1a';
+      ctx.fillRect(0, 0, W, H);
+      for (const s of stars) {
+        s.twinkle += s.speed * 60;
+        ctx.globalAlpha = 0.4 + Math.sin(s.twinkle) * 0.4;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(drawBg);
+    }
+    drawBg();
+
+    /* ── Game data: syl, word, syllable parts, vowel ── */
+    const RAW = [
+      ["de","dedo","de.do","e"],["la","lado","la.do","a"],["es","estar","es.tar","e"],
+      ["en","entrar","en.trar","e"],["ra","rata","ra.ta","a"],["te","tener","te.ner","e"],
+      ["ar","arte","ar.te","a"],["el","el","el","e"],["ta","taza","ta.za","a"],
+      ["do","dolor","do.lor","o"],["co","cosa","co.sa","o"],["re","reloj","re.loj","e"],
+      ["as","casas","ca.sas","a"],["on","onda","on.da","o"],["an","antes","an.tes","a"],
+      ["to","todo","to.do","o"],["lo","loco","lo.co","o"],["un","un","un","u"],
+      ["or","orden","or.den","o"],["ad","admirar","ad.mi.rar","a"],["se","semana","se.ma.na","e"],
+      ["ci","cine","ci.ne","i"],["al","alto","al.to","a"],["pa","papá","pa.pá","a"],
+      ["na","nada","na.da","a"],["ro","ropa","ro.pa","o"],["no","noche","no.che","o"],
+      ["me","mesa","me.sa","e"],["in","invierno","in.vier.no","i"],["er","ermita","er.mi.ta","e"],
+      ["os","niños","ni.ños","o"],["que","queso","que.so","e"],["con","contar","con.tar","o"],
+      ["par","parque","par.que","a"],["los","los","los","o"],["per","perla","per.la","e"],
+      ["por","por","por","o"],["tra","traje","tra.je","a"],["las","las","las","a"],
+      ["com","comprar","com.prar","o"],["res","resto","res.to","e"],["ten","tengo","ten.go","e"],
+      ["dos","dos","dos","o"],["des","desde","des.de","e"],["ver","verde","ver.de","e"],
+      ["men","menta","men.ta","e"],["ma","mano","ma.no","a"],["mi","mirar","mi.rar","i"],
+      ["si","silla","si.lla","i"],["su","suyo","su.yo","u"]
+    ];
+    const DATA = RAW.map((r,i) => ({ i, syl:r[0], word:r[1], parts:r[2].split('.'), vowel:r[3] }));
+    const VOWEL_NAME = { a:'A', e:'E', i:'I', o:'O', u:'U' };
+    const VOWEL_COLORS = {
+      a: ['#f97316','#c2410c'], e: ['#eab308','#a16207'], i: ['#22C55E','#15803D'],
+      o: ['#3B82F6','#1D4ED8'], u: ['#a855f7','#7c2d92']
+    };
+
+    /* ── Persisted / session state ── */
+    let state = { known: [], score: 0, streak: 0, bestStreak: 0, filter: 'all', mode: 'cards' };
+    function loadLocal() {
+      try {
+        const raw = localStorage.getItem('silabario-vivo-progress');
+        if (raw) { const parsed = JSON.parse(raw); if (parsed && typeof parsed === 'object') Object.assign(state, parsed); }
+      } catch (e) {}
+    }
+    function saveLocal() { try { localStorage.setItem('silabario-vivo-progress', JSON.stringify(state)); } catch (e) {} }
+
+    let deckOrder = DATA.map(d => d.i);
+    let pos = 0, flipped = false, quizItem = null, quizAnswered = false;
+
+    function knownSet() { return new Set(state.known); }
+    function currentFilterList() { return state.filter === 'all' ? DATA : DATA.filter(d => d.vowel === state.filter); }
+    function shuffle(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+      return a;
+    }
+    function filteredDeck() {
+      const ids = new Set(currentFilterList().map(d => d.i));
+      return deckOrder.filter(id => ids.has(id));
+    }
+
+    /* ── Chips ── */
+    const chipsEl = document.getElementById('chips');
+    const VOWELS = ['all','a','e','i','o','u'];
+    function renderChips() {
+      chipsEl.innerHTML = '';
+      VOWELS.forEach(v => {
+        const b = document.createElement('button');
+        b.className = 'chip' + (state.filter === v ? ' active' : '');
+        b.type = 'button';
+        if (v === 'all') { b.textContent = 'TODAS'; }
+        else {
+          const dot = document.createElement('span');
+          dot.className = 'dot';
+          dot.style.background = VOWEL_COLORS[v][0];
+          b.appendChild(dot);
+          b.appendChild(document.createTextNode(VOWEL_NAME[v]));
+        }
+        b.addEventListener('click', () => {
+          state.filter = v; pos = 0; flipped = false;
+          renderChips(); renderCard(); renderDots(); newQuizItem(); saveLocal();
+        });
+        chipsEl.appendChild(b);
+      });
+    }
+
+    function renderStats() {
+      document.getElementById('statKnown').textContent = state.known.length + '/50';
+      document.getElementById('statScore').textContent = state.score;
+      document.getElementById('statStreak').textContent = state.streak;
+    }
+
+    /* ── Cards mode ── */
+    const cardEl = document.getElementById('card');
+    const sylText = document.getElementById('sylText');
+    const wordText = document.getElementById('wordText');
+    const faceFront = document.getElementById('faceFront');
+    const faceBack = document.getElementById('faceBack');
+
+    function currentItem() {
+      const deck = filteredDeck();
+      if (deck.length === 0) return null;
+      if (pos >= deck.length) pos = 0;
+      return DATA[deck[pos]];
+    }
+    function renderCard() {
+      const item = currentItem();
+      cardEl.classList.toggle('flipped', flipped);
+      if (!item) { sylText.textContent = '—'; wordText.innerHTML = ''; return; }
+      const [c1, c2] = VOWEL_COLORS[item.vowel];
+      faceFront.style.setProperty('--vc1', c1); faceFront.style.setProperty('--vc2', c2);
+      faceBack.style.setProperty('--vc1', c1);
+      sylText.textContent = item.syl;
+      wordText.innerHTML = item.parts.map(p => p === item.syl ? '<mark>' + p + '</mark>' : p).join('·');
+    }
+    function renderDots() {
+      const dotsEl = document.getElementById('dots');
+      dotsEl.innerHTML = '';
+      const deck = filteredDeck(); const ks = knownSet();
+      deck.forEach((id, idx) => {
+        const d = DATA[id];
+        const el = document.createElement('span');
+        el.className = 'pdot' + (ks.has(id) ? ' known' : '') + (idx === pos ? ' current' : '');
+        el.style.setProperty('--dc', VOWEL_COLORS[d.vowel][0]);
+        dotsEl.appendChild(el);
+      });
+    }
+    function goTo(delta) {
+      const deck = filteredDeck();
+      if (deck.length === 0) return;
+      pos = (pos + delta + deck.length) % deck.length;
+      flipped = false;
+      renderCard(); renderDots(); saveLocal();
+    }
+    cardEl.addEventListener('click', () => { flipped = !flipped; renderCard(); });
+    document.getElementById('prevBtn').addEventListener('click', () => goTo(-1));
+    document.getElementById('nextBtn').addEventListener('click', () => goTo(1));
+    document.getElementById('shuffleBtn').addEventListener('click', () => {
+      deckOrder = shuffle(deckOrder); pos = 0; flipped = false;
+      renderCard(); renderDots(); saveLocal();
+    });
+    document.getElementById('retryBtn').addEventListener('click', () => {
+      const item = currentItem();
+      if (item) state.known = state.known.filter(id => id !== item.i);
+      renderStats(); renderDots(); goTo(1);
+    });
+    document.getElementById('knowBtn').addEventListener('click', () => {
+      const item = currentItem();
+      if (item && !state.known.includes(item.i)) state.known.push(item.i);
+      renderStats(); goTo(1);
+    });
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      state.known = []; state.score = 0; state.streak = 0; state.bestStreak = 0;
+      renderStats(); renderDots(); saveLocal();
+    });
+    document.getElementById('sayBtn').addEventListener('click', (e) => { e.stopPropagation(); speak(currentItem()); });
+
+    /* ── Spanish voice pick, same approach as Banderas del Mundo ── */
+    function pickSpanishVoice() {
+      const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+      if (!voices.length) return null;
+      const latamLangs = ['es-mx','es-us','es-419','es-ar','es-co'];
+      const niceNameHints = ['google','natural','online','paulina','juan','sabina','dalia','esperanza'];
+      const score = v => {
+        const lang = (v.lang || '').toLowerCase(); const name = (v.name || '').toLowerCase();
+        let s = 0;
+        if (latamLangs.includes(lang)) s += 10; else if (lang.startsWith('es')) s += 3;
+        if (niceNameHints.some(h => name.includes(h))) s += 5;
+        return s;
+      };
+      const esVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('es'));
+      if (!esVoices.length) return null;
+      return esVoices.sort((a,b) => score(b) - score(a))[0];
+    }
+    function speak(item) {
+      if (!item || !window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(item.word);
+      u.rate = 0.85; u.pitch = 1.0;
+      const picked = pickSpanishVoice();
+      if (picked) { u.voice = picked; u.lang = picked.lang; } else { u.lang = 'es-MX'; }
+      window.speechSynthesis.speak(u);
+    }
+    if (window.speechSynthesis && window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {};
+    }
+
+    /* ── Quiz mode ── */
+    const quizWordEl = document.getElementById('quizWord');
+    const quizOptionsEl = document.getElementById('quizOptions');
+    const quizFeedbackEl = document.getElementById('quizFeedback');
+
+    function newQuizItem() {
+      let pool = currentFilterList();
+      if (pool.length < 2) pool = DATA;
+      quizItem = pool[Math.floor(Math.random() * pool.length)];
+      quizAnswered = false;
+      quizFeedbackEl.textContent = ' ';
+      quizFeedbackEl.className = 'quiz-feedback';
+      quizWordEl.innerHTML = quizItem.parts.map(p => p === quizItem.syl ? '<span class="blank">' + p + '</span>' : p).join('·');
+
+      const sameVowel = DATA.filter(d => d.vowel === quizItem.vowel && d.syl !== quizItem.syl);
+      const others = DATA.filter(d => d.syl !== quizItem.syl);
+      const distractSource = shuffle(sameVowel.length >= 3 ? sameVowel : others);
+      const distractors = []; const seen = {};
+      for (let k = 0; k < distractSource.length && distractors.length < 3; k++) {
+        const s = distractSource[k].syl;
+        if (!seen[s] && s !== quizItem.syl) { seen[s] = true; distractors.push(s); }
+      }
+      const options = shuffle([quizItem.syl].concat(distractors));
+      quizOptionsEl.innerHTML = '';
+      options.forEach(syl => {
+        const b = document.createElement('button');
+        b.className = 'opt'; b.type = 'button'; b.textContent = syl;
+        b.addEventListener('click', () => answerQuiz(syl, b));
+        quizOptionsEl.appendChild(b);
+      });
+    }
+    function answerQuiz(chosen, btnEl) {
+      if (quizAnswered) return;
+      quizAnswered = true;
+      const correct = chosen === quizItem.syl;
+      Array.from(quizOptionsEl.children).forEach(b => {
+        b.disabled = true;
+        if (b.textContent === quizItem.syl) b.classList.add('correct');
+        else if (b === btnEl) b.classList.add('wrong');
+      });
+      quizWordEl.innerHTML = quizItem.parts.map(p => p === quizItem.syl ? '<mark>' + p + '</mark>' : p).join('·');
+      if (correct) {
+        state.score += 1; state.streak += 1;
+        if (state.streak > state.bestStreak) state.bestStreak = state.streak;
+        quizFeedbackEl.textContent = '¡MUY BIEN! ' + quizItem.word.toUpperCase();
+        quizFeedbackEl.className = 'quiz-feedback good';
+      } else {
+        state.streak = 0;
+        quizFeedbackEl.textContent = 'ERA "' + quizItem.syl.toUpperCase() + '" · ' + quizItem.word.toUpperCase();
+        quizFeedbackEl.className = 'quiz-feedback bad';
+      }
+      renderStats(); saveLocal(); speak(quizItem);
+      setTimeout(newQuizItem, 1200);
+    }
+
+    /* ── Mode switching ── */
+    const modeCardsBtn = document.getElementById('modeCards');
+    const modeQuizBtn = document.getElementById('modeQuiz');
+    const cardsView = document.getElementById('cardsView');
+    const quizView = document.getElementById('quizView');
+    function setMode(m) {
+      state.mode = m;
+      modeCardsBtn.classList.toggle('active', m === 'cards');
+      modeQuizBtn.classList.toggle('active', m === 'quiz');
+      cardsView.hidden = m !== 'cards';
+      quizView.hidden = m !== 'quiz';
+      if (m === 'quiz') newQuizItem();
+      saveLocal();
+    }
+    modeCardsBtn.addEventListener('click', () => setMode('cards'));
+    modeQuizBtn.addEventListener('click', () => setMode('quiz'));
+
+    document.addEventListener('keydown', (ev) => {
+      if (state.mode === 'cards') {
+        if (ev.code === 'Space') { ev.preventDefault(); flipped = !flipped; renderCard(); }
+        else if (ev.key === 'ArrowRight') goTo(1);
+        else if (ev.key === 'ArrowLeft') goTo(-1);
+      } else {
+        const n = parseInt(ev.key, 10);
+        if (n >= 1 && n <= 4 && !quizAnswered) { const btn = quizOptionsEl.children[n - 1]; if (btn) btn.click(); }
+      }
+    });
+
+    /* ── Boot ── */
+    loadLocal();
+    renderChips();
+    renderStats();
+    setMode(state.mode || 'cards');
+    renderCard();
+    renderDots();
+  </script>
+</body>
+</html>
