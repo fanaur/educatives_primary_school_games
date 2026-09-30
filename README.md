@@ -107,6 +107,9 @@ Esto levanta el servidor en `http://localhost:3000` igual que corriéndolo nativ
 **Silabario Vivo** — Practica las sílabas más usadas del español con fichas para dar vuelta y un desafío de opción múltiple.
 ![Silabario Vivo](public/screenshots/letters-silabario.png)
 
+**Frases en Sílabas** — Lee la frase de un cuento con cada palabra separada en sílabas y escríbela con las palabras juntas.
+![Frases en Sílabas](public/screenshots/letters-frases-silabas.png)
+
 ### 🔬 Ciencia
 
 **Ordena los Planetas** — Ordena los planetas del sistema solar y obsérvalos orbitar.
