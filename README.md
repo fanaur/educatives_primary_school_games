@@ -110,6 +110,8 @@ Esto levanta el servidor en `http://localhost:3000` igual que corriéndolo nativ
 **Frases en Sílabas** — Lee la frase de un cuento con cada palabra separada en sílabas y escríbela con las palabras juntas.
 ![Frases en Sílabas](public/screenshots/letters-frases-silabas.png)
 
+**Corta las Sílabas** — Usa la tijera para cortar la palabra en sus sílabas correctas.
+
 ### 🔬 Ciencia
 
 **Ordena los Planetas** — Ordena los planetas del sistema solar y obsérvalos orbitar.
