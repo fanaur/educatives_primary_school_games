@@ -109,7 +109,34 @@
     border-color:#64748b;
   }
 
-  #arrow { color:#64748b; font-size:30px; }
+  #circuit { display:flex; align-items:center; gap:6px; }
+
+  #gate-svg { width:220px; height:130px; overflow:visible; }
+  #gate-svg .wire {
+    stroke:#475569; stroke-width:4; fill:none;
+    transition: stroke .2s, filter .2s;
+  }
+  #gate-svg .wire.on { stroke:#22c55e; filter:drop-shadow(0 0 5px rgba(34,197,94,.8)); }
+  #gate-svg .gate-shape {
+    fill:rgba(255,255,255,.08); stroke:#cbd5e1; stroke-width:3;
+    transition: fill .2s, stroke .2s;
+  }
+  #gate-svg .gate-shape.on { fill:rgba(255,215,0,.18); stroke:#FFD700; }
+  #gate-svg .not-bubble {
+    fill:rgba(255,255,255,.08); stroke:#cbd5e1; stroke-width:3;
+    transition: fill .2s, stroke .2s;
+  }
+  #gate-svg .not-bubble.on { fill:rgba(255,215,0,.18); stroke:#FFD700; }
+  #gate-svg .gate-name {
+    fill:#e2e8f0; font-size:20px; font-weight:bold; text-anchor:middle;
+    font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+  }
+  #gate-svg .wire-val {
+    fill:#94a3b8; font-size:22px; font-weight:bold; text-anchor:middle;
+    font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+    transition: fill .2s;
+  }
+  #gate-svg .wire-val.on { fill:#4ade80; }
 
   #bulb-wrap { display:flex; flex-direction:column; align-items:center; gap:6px; }
   #bulb {
@@ -222,8 +249,8 @@
 
     <div id="switches"></div>
 
-    <div style="display:flex; align-items:center; gap:18px;">
-      <span id="arrow">➜</span>
+    <div id="circuit">
+      <svg id="gate-svg" viewBox="0 0 220 130" xmlns="http://www.w3.org/2000/svg"></svg>
       <div id="bulb-wrap">
         <div id="bulb">💡</div>
         <div id="bulb-state">APAGADA</div>
@@ -309,6 +336,7 @@
   const gateLabelEl  = document.getElementById('gate-label');
   const goalTextEl   = document.getElementById('goal-text');
   const switchesEl   = document.getElementById('switches');
+  const gateSvgEl    = document.getElementById('gate-svg');
   const bulbEl       = document.getElementById('bulb');
   const bulbStateEl  = document.getElementById('bulb-state');
   const checkBtn     = document.getElementById('check-btn');
@@ -364,6 +392,70 @@
     updateBulb();
   }
 
+  function buildGateSVG(gateName) {
+    const twoInputs = GATES[gateName].inputs === 2;
+    let shape, outX, abbr;
+
+    if (gateName === 'AND') {
+      shape = '<path class="gate-shape" id="gate-shape" d="M70,15 H108 A40,40 0 0 1 108,115 H70 Z" />';
+      outX = 148; abbr = 'Y';
+    } else if (gateName === 'OR') {
+      shape = '<path class="gate-shape" id="gate-shape" d="M70,15 Q104,15 150,65 Q104,115 70,115 Q90,65 70,15 Z" />';
+      outX = 150; abbr = 'O';
+    } else {
+      shape = '<path class="gate-shape" id="gate-shape" d="M70,15 L70,115 L140,65 Z" />' +
+              '<circle class="not-bubble" id="not-bubble" cx="149" cy="65" r="9" />';
+      outX = 158; abbr = 'NO';
+    }
+
+    const inAY = twoInputs ? 40 : 65;
+    const inBY = 90;
+
+    let wires = `<line class="wire" id="wire-in-a" x1="0" y1="${inAY}" x2="70" y2="${inAY}" />`;
+    let labels = `<text class="wire-val" id="val-in-a" x="14" y="${inAY - 12}">0</text>`;
+
+    if (twoInputs) {
+      wires += `<line class="wire" id="wire-in-b" x1="0" y1="${inBY}" x2="70" y2="${inBY}" />`;
+      labels += `<text class="wire-val" id="val-in-b" x="14" y="${inBY - 12}">0</text>`;
+    }
+
+    wires += `<line class="wire" id="wire-out" x1="${outX}" y1="65" x2="220" y2="65" />`;
+    labels += `<text class="wire-val" id="val-out" x="205" y="53">0</text>`;
+
+    const name = `<text class="gate-name" x="${gateName === 'NOT' ? 95 : 90}" y="72">${abbr}</text>`;
+
+    gateSvgEl.innerHTML = wires + shape + name + labels;
+  }
+
+  function updateGateSVG() {
+    const r = rounds[round];
+    const gate = GATES[r.gate];
+    const out = !!gate.fn(...switchState);
+
+    const setWire = (id, on) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('on', on);
+    };
+    const setVal = (id, on) => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = on ? '1' : '0'; el.classList.toggle('on', on); }
+    };
+
+    setWire('wire-in-a', switchState[0]);
+    setVal('val-in-a', switchState[0]);
+    if (gate.inputs === 2) {
+      setWire('wire-in-b', switchState[1]);
+      setVal('val-in-b', switchState[1]);
+    }
+    setWire('wire-out', out);
+    setVal('val-out', out);
+
+    const shapeEl = document.getElementById('gate-shape');
+    if (shapeEl) shapeEl.classList.toggle('on', out);
+    const bubbleEl = document.getElementById('not-bubble');
+    if (bubbleEl) bubbleEl.classList.toggle('on', out);
+  }
+
   function currentOutput() {
     const gate = GATES[rounds[round].gate];
     return !!gate.fn(...switchState);
@@ -373,6 +465,7 @@
     const lit = currentOutput();
     bulbEl.classList.toggle('lit', lit);
     bulbStateEl.textContent = lit ? 'ENCENDIDA' : 'APAGADA';
+    updateGateSVG();
   }
 
   function loadRound() {
@@ -388,6 +481,7 @@
     gateLabelEl.textContent = 'PUERTA: ' + gate.label;
     goalTextEl.textContent = r.target ? 'SE ENCIENDA 💡' : 'SE QUEDE APAGADA 🌑';
     highlightGateCard(r.gate);
+    buildGateSVG(r.gate);
     renderSwitches(gate.inputs);
 
     roundValEl.textContent = (round + 1) + '/' + TOTAL_ROUNDS;
