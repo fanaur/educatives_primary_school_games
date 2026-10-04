@@ -411,12 +411,12 @@
     const inAY = twoInputs ? 40 : 65;
     const inBY = 90;
 
-    let wires = `<line class="wire" id="wire-in-a" x1="0" y1="${inAY}" x2="70" y2="${inAY}" />`;
-    let labels = `<text class="wire-val" id="val-in-a" x="14" y="${inAY - 12}">0</text>`;
+    let wires = `<line class="wire" id="wire-in-a" x1="30" y1="${inAY}" x2="70" y2="${inAY}" />`;
+    let labels = `<text class="wire-val" id="val-in-a" x="12" y="${inAY + 7}">0</text>`;
 
     if (twoInputs) {
-      wires += `<line class="wire" id="wire-in-b" x1="0" y1="${inBY}" x2="70" y2="${inBY}" />`;
-      labels += `<text class="wire-val" id="val-in-b" x="14" y="${inBY - 12}">0</text>`;
+      wires += `<line class="wire" id="wire-in-b" x1="30" y1="${inBY}" x2="70" y2="${inBY}" />`;
+      labels += `<text class="wire-val" id="val-in-b" x="12" y="${inBY + 7}">0</text>`;
     }
 
     wires += `<line class="wire" id="wire-out" x1="${outX}" y1="65" x2="220" y2="65" />`;
