@@ -87,7 +87,7 @@
   }
   #objective b { color:#FFD700; }
 
-  #switches { display:flex; gap:24px; align-items:center; }
+  #switches { display:flex; flex-direction:column; gap:26px; align-items:center; }
   .switch-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; }
   .switch-name { color:#94a3b8; font-size:13px; letter-spacing:1px; }
   .switch-btn {
@@ -109,7 +109,7 @@
     border-color:#64748b;
   }
 
-  #circuit { display:flex; align-items:center; gap:6px; }
+  #circuit { display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center; }
 
   #gate-svg { width:220px; height:130px; overflow:visible; }
   #gate-svg .wire {
@@ -247,9 +247,8 @@
     <div id="gate-label">PUERTA: Y (AND)</div>
     <div id="objective">Pon los interruptores para que la bombilla <b id="goal-text">SE ENCIENDA</b></div>
 
-    <div id="switches"></div>
-
     <div id="circuit">
+      <div id="switches"></div>
       <svg id="gate-svg" viewBox="0 0 220 130" xmlns="http://www.w3.org/2000/svg"></svg>
       <div id="bulb-wrap">
         <div id="bulb">💡</div>
