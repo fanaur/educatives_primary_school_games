@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Puertas Lógicas – MicaGames</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background:#0f0f1a;
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+    overflow-y:auto; overflow-x:hidden;
+    user-select:none;
+  }
+
+  canvas#bg { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+
+  #game {
+    position:relative; z-index:1;
+    display:flex; flex-direction:column;
+    align-items:center; gap:20px;
+    padding:20px 16px 40px;
+    width:100%; max-width:720px;
+  }
+
+  #topbar { display:flex; align-items:center; gap:14px; width:100%; }
+  .home-btn {
+    text-decoration:none;
+    background:rgba(255,255,255,0.08);
+    border:2px solid rgba(255,255,255,0.15);
+    border-radius:50%; width:44px; height:44px;
+    display:flex; align-items:center; justify-content:center; font-size:1.3rem;
+    transition:border-color .15s, background .15s;
+  }
+  .home-btn:hover { border-color:#FFD700; background:rgba(255,215,0,.1); }
+  .page-title {
+    color:#FFD700; font-size:20px;
+    text-shadow:0 0 20px rgba(255,215,0,.4), 2px 2px 0 #b8860b;
+    letter-spacing:1px;
+  }
+
+  #hud { display:flex; gap:28px; align-items:center; margin-left:auto; }
+  .hud-box { text-align:center; }
+  .hud-label { color:#64748b; font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+  .hud-value { color:#FFD700; font-size:24px; font-weight:bold; text-shadow:0 0 14px rgba(255,215,0,.4); }
+
+  /* ── Cheat sheet ── */
+  #cheatsheet {
+    width:100%;
+    display:flex; gap:14px; flex-wrap:wrap; justify-content:center;
+  }
+  .gate-card {
+    flex:1; min-width:160px;
+    background:rgba(255,255,255,.05);
+    border:2px solid rgba(255,255,255,.1);
+    border-radius:16px;
+    padding:14px;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    transition:border-color .15s;
+  }
+  .gate-card.active { border-color:#FFD700; background:rgba(255,215,0,.08); }
+  .gate-card h3 { color:#fff; font-size:16px; letter-spacing:1px; }
+  .gate-card p { color:#94a3b8; font-size:11.5px; text-align:center; line-height:1.4; }
+  table.truth { border-collapse:collapse; font-size:12px; color:#cbd5e1; }
+  table.truth th, table.truth td { border:1px solid rgba(255,255,255,.15); padding:3px 8px; text-align:center; }
+  table.truth th { color:#FFD700; }
+
+  /* ── Challenge scene ── */
+  #scene {
+    width:100%;
+    background:rgba(255,255,255,.05);
+    border:2px solid rgba(255,255,255,.1);
+    border-radius:24px;
+    padding:28px 20px 24px;
+    display:flex; flex-direction:column; align-items:center; gap:20px;
+  }
+
+  #gate-label {
+    color:#FFD700; font-size:22px; letter-spacing:2px; font-weight:bold;
+    text-shadow:0 0 16px rgba(255,215,0,.4);
+  }
+  #objective {
+    color:#e2e8f0; font-size:16px; text-align:center; letter-spacing:.5px;
+  }
+  #objective b { color:#FFD700; }
+
+  #switches { display:flex; flex-direction:column; gap:26px; align-items:center; }
+  .switch-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .switch-name { color:#94a3b8; font-size:13px; letter-spacing:1px; }
+  .switch-btn {
+    width:72px; height:72px; border-radius:18px;
+    border:3px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.06);
+    color:#fff; font-size:28px; font-weight:bold;
+    cursor:pointer;
+    transition:transform .12s, border-color .15s, background .15s;
+  }
+  .switch-btn:hover { transform:scale(1.06); }
+  .switch-btn.on {
+    background:linear-gradient(135deg,#22c55e,#15803d);
+    border-color:#4ade80;
+    box-shadow:0 0 20px rgba(34,197,94,.5);
+  }
+  .switch-btn.off {
+    background:linear-gradient(135deg,#475569,#1e293b);
+    border-color:#64748b;
+  }
+
+  #circuit { display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center; }
+
+  #gate-svg { width:220px; height:130px; overflow:visible; }
+  #gate-svg .wire {
+    stroke:#475569; stroke-width:4; fill:none;
+    transition: stroke .2s, filter .2s;
+  }
+  #gate-svg .wire.on { stroke:#22c55e; filter:drop-shadow(0 0 5px rgba(34,197,94,.8)); }
+  #gate-svg .gate-shape {
+    fill:rgba(255,255,255,.08); stroke:#cbd5e1; stroke-width:3;
+    transition: fill .2s, stroke .2s;
+  }
+  #gate-svg .gate-shape.on { fill:rgba(255,215,0,.18); stroke:#FFD700; }
+  #gate-svg .not-bubble {
+    fill:rgba(255,255,255,.08); stroke:#cbd5e1; stroke-width:3;
+    transition: fill .2s, stroke .2s;
+  }
+  #gate-svg .not-bubble.on { fill:rgba(255,215,0,.18); stroke:#FFD700; }
+  #gate-svg .gate-name {
+    fill:#e2e8f0; font-size:20px; font-weight:bold; text-anchor:middle;
+    font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+  }
+  #gate-svg .wire-val {
+    fill:#94a3b8; font-size:22px; font-weight:bold; text-anchor:middle;
+    font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+    transition: fill .2s;
+  }
+  #gate-svg .wire-val.on { fill:#4ade80; }
+
+  #bulb-wrap { display:flex; flex-direction:column; align-items:center; gap:6px; }
+  #bulb {
+    font-size:70px;
+    filter: drop-shadow(0 0 6px rgba(0,0,0,.4));
+    transition: filter .2s, transform .2s;
+  }
+  #bulb.lit { filter: drop-shadow(0 0 30px #FFD700) drop-shadow(0 0 50px #FFA500); }
+  #bulb-state { color:#94a3b8; font-size:13px; letter-spacing:1px; }
+
+  #check-btn {
+    background:linear-gradient(90deg,#FFD700,#F59E0B);
+    color:#1a1a1a; font-size:16px; font-weight:bold;
+    padding:12px 40px; border-radius:30px; letter-spacing:1px;
+    border:none; cursor:pointer;
+    transition:transform .1s;
+  }
+  #check-btn:hover { transform:scale(1.05); }
+  #check-btn:disabled { opacity:.4; cursor:default; transform:none; }
+
+  #feedback {
+    font-size:17px; font-weight:bold; min-height:26px; text-align:center;
+  }
+  #feedback.good { color:#4ade80; }
+  #feedback.bad { color:#f87171; }
+
+  #next-btn {
+    background:rgba(255,255,255,.08);
+    border:2px solid rgba(255,215,0,.4);
+    color:#FFD700; font-size:14px; font-weight:bold;
+    padding:9px 26px; border-radius:24px; letter-spacing:1px;
+    cursor:pointer; display:none;
+  }
+  #next-btn:hover { background:rgba(255,215,0,.15); }
+
+  #end-screen {
+    display:none;
+    width:100%;
+    background:rgba(255,255,255,.05);
+    border:2px solid rgba(255,215,0,.3);
+    border-radius:24px;
+    padding:40px 20px;
+    flex-direction:column; align-items:center; gap:14px;
+  }
+  #end-screen h2 { color:#FFD700; font-size:28px; letter-spacing:2px; }
+  #end-screen p { color:#cbd5e1; font-size:16px; }
+  #retry-btn {
+    background:linear-gradient(90deg,#FFD700,#F59E0B);
+    color:#1a1a1a; font-size:16px; font-weight:bold;
+    padding:12px 36px; border-radius:30px; letter-spacing:1px;
+    border:none; cursor:pointer; margin-top:10px;
+  }
+
+  .footer { color:#334155; font-size:12px; letter-spacing:1px; }
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+
+<div id="game">
+  <div id="topbar">
+    <a class="home-btn" href="index.html">←</a>
+    <span class="page-title">💻 PUERTAS LÓGICAS</span>
+    <div id="hud">
+      <div class="hud-box">
+        <div class="hud-label">Puntos</div>
+        <div class="hud-value" id="score-val">0</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">Ronda</div>
+        <div class="hud-value" id="round-val">1/10</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="cheatsheet">
+    <div class="gate-card" id="card-AND">
+      <h3>Y (AND)</h3>
+      <p>La bombilla se enciende SOLO si LOS DOS interruptores están encendidos.</p>
+      <table class="truth"><tr><th>A</th><th>B</th><th>Y</th></tr>
+        <tr><td>0</td><td>0</td><td>0</td></tr>
+        <tr><td>0</td><td>1</td><td>0</td></tr>
+        <tr><td>1</td><td>0</td><td>0</td></tr>
+        <tr><td>1</td><td>1</td><td>1</td></tr>
+      </table>
+    </div>
+    <div class="gate-card" id="card-OR">
+      <h3>O (OR)</h3>
+      <p>La bombilla se enciende si AL MENOS UNO de los interruptores está encendido.</p>
+      <table class="truth"><tr><th>A</th><th>B</th><th>O</th></tr>
+        <tr><td>0</td><td>0</td><td>0</td></tr>
+        <tr><td>0</td><td>1</td><td>1</td></tr>
+        <tr><td>1</td><td>0</td><td>1</td></tr>
+        <tr><td>1</td><td>1</td><td>1</td></tr>
+      </table>
+    </div>
+    <div class="gate-card" id="card-NOT">
+      <h3>NO (NOT)</h3>
+      <p>La bombilla hace lo CONTRARIO del interruptor: si está apagado, se enciende.</p>
+      <table class="truth"><tr><th>A</th><th>NO</th></tr>
+        <tr><td>0</td><td>1</td></tr>
+        <tr><td>1</td><td>0</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div id="scene">
+    <div id="gate-label">PUERTA: Y (AND)</div>
+    <div id="objective">Pon los interruptores para que la bombilla <b id="goal-text">SE ENCIENDA</b></div>
+
+    <div id="circuit">
+      <div id="switches"></div>
+      <svg id="gate-svg" viewBox="0 0 220 130" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="bulb-wrap">
+        <div id="bulb">💡</div>
+        <div id="bulb-state">APAGADA</div>
+      </div>
+    </div>
+
+    <button id="check-btn">COMPROBAR</button>
+    <div id="feedback"></div>
+    <button id="next-btn">SIGUIENTE ➜</button>
+  </div>
+
+  <div id="end-screen">
+    <h2>🏆 ¡JUEGO TERMINADO!</h2>
+    <p id="end-summary"></p>
+    <button id="retry-btn">JUGAR DE NUEVO</button>
+  </div>
+
+  <div class="footer">¡APRENDE A PENSAR COMO UNA COMPUTADORA!</div>
+</div>
+
+<script>
+  // ── Background animation ──
+  const canvas = document.getElementById('bg');
+  const ctx = canvas.getContext('2d');
+  function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const stars = Array.from({ length: 160 }, () => ({
+    x: Math.random(), y: Math.random(),
+    r: 0.5 + Math.random() * 1.5,
+    speed: 0.00008 + Math.random() * 0.00015,
+    twinkle: Math.random() * Math.PI * 2,
+  }));
+  const symbols = ['0','1','AND','OR','NOT'];
+  const floaters = Array.from({ length: 20 }, () => ({
+    text: symbols[Math.floor(Math.random() * symbols.length)],
+    x: Math.random(), y: Math.random(),
+    speed: 0.0001 + Math.random() * 0.0002,
+    size: 14 + Math.random() * 18,
+    alpha: 0.04 + Math.random() * 0.08,
+  }));
+  function drawBg() {
+    const W = canvas.width, H = canvas.height;
+    ctx.fillStyle = '#0f0f1a';
+    ctx.fillRect(0, 0, W, H);
+    for (const s of stars) {
+      s.twinkle += s.speed * 60;
+      ctx.globalAlpha = 0.4 + Math.sin(s.twinkle) * 0.4;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (const f of floaters) {
+      f.y -= f.speed;
+      if (f.y < -0.05) f.y = 1.05;
+      ctx.globalAlpha = f.alpha;
+      ctx.fillStyle = '#FFD700';
+      ctx.font = `bold ${f.size}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.fillText(f.text, f.x * W, f.y * H);
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(drawBg);
+  }
+  drawBg();
+
+  // ── Game logic ──
+  const TOTAL_ROUNDS = 10;
+  const GATES = {
+    AND: { label: 'Y (AND)', inputs: 2, fn: (a,b) => a && b },
+    OR:  { label: 'O (OR)',  inputs: 2, fn: (a,b) => a || b },
+    NOT: { label: 'NO (NOT)', inputs: 1, fn: (a) => !a },
+  };
+
+  let score = 0;
+  let round = 0;
+  let rounds = [];
+  let switchState = [];
+  let checked = false;
+
+  const gateLabelEl  = document.getElementById('gate-label');
+  const goalTextEl   = document.getElementById('goal-text');
+  const switchesEl   = document.getElementById('switches');
+  const gateSvgEl    = document.getElementById('gate-svg');
+  const bulbEl       = document.getElementById('bulb');
+  const bulbStateEl  = document.getElementById('bulb-state');
+  const checkBtn     = document.getElementById('check-btn');
+  const nextBtn      = document.getElementById('next-btn');
+  const feedbackEl   = document.getElementById('feedback');
+  const scoreValEl   = document.getElementById('score-val');
+  const roundValEl   = document.getElementById('round-val');
+  const sceneEl      = document.getElementById('scene');
+  const endScreenEl  = document.getElementById('end-screen');
+  const endSummaryEl = document.getElementById('end-summary');
+
+  function buildRounds() {
+    const names = Object.keys(GATES);
+    rounds = [];
+    for (let i = 0; i < TOTAL_ROUNDS; i++) {
+      const name = names[Math.floor(Math.random() * names.length)];
+      const target = Math.random() < 0.5;
+      rounds.push({ gate: name, target });
+    }
+  }
+
+  function highlightGateCard(name) {
+    ['AND','OR','NOT'].forEach(n => {
+      document.getElementById('card-' + n).classList.toggle('active', n === name);
+    });
+  }
+
+  function renderSwitches(count) {
+    switchesEl.innerHTML = '';
+    switchState = Array.from({ length: count }, () => false);
+    const names = count === 1 ? ['A'] : ['A', 'B'];
+    names.forEach((name, idx) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'switch-wrap';
+      const label = document.createElement('div');
+      label.className = 'switch-name';
+      label.textContent = 'Interruptor ' + name;
+      const btn = document.createElement('button');
+      btn.className = 'switch-btn off';
+      btn.textContent = '0';
+      btn.addEventListener('click', () => {
+        if (checked) return;
+        switchState[idx] = !switchState[idx];
+        btn.textContent = switchState[idx] ? '1' : '0';
+        btn.classList.toggle('on', switchState[idx]);
+        btn.classList.toggle('off', !switchState[idx]);
+        updateBulb();
+      });
+      wrap.appendChild(label);
+      wrap.appendChild(btn);
+      switchesEl.appendChild(wrap);
+    });
+    updateBulb();
+  }
+
+  function buildGateSVG(gateName) {
+    const twoInputs = GATES[gateName].inputs === 2;
+    let shape, outX, abbr;
+
+    if (gateName === 'AND') {
+      shape = '<path class="gate-shape" id="gate-shape" d="M70,15 H108 A40,40 0 0 1 108,115 H70 Z" />';
+      outX = 148; abbr = 'Y';
+    } else if (gateName === 'OR') {
+      shape = '<path class="gate-shape" id="gate-shape" d="M70,15 Q104,15 150,65 Q104,115 70,115 Q90,65 70,15 Z" />';
+      outX = 150; abbr = 'O';
+    } else {
+      shape = '<path class="gate-shape" id="gate-shape" d="M70,15 L70,115 L140,65 Z" />' +
+              '<circle class="not-bubble" id="not-bubble" cx="149" cy="65" r="9" />';
+      outX = 158; abbr = 'NO';
+    }
+
+    const inAY = twoInputs ? 40 : 65;
+    const inBY = 90;
+
+    let wires = `<line class="wire" id="wire-in-a" x1="30" y1="${inAY}" x2="70" y2="${inAY}" />`;
+    let labels = `<text class="wire-val" id="val-in-a" x="12" y="${inAY + 7}">0</text>`;
+
+    if (twoInputs) {
+      wires += `<line class="wire" id="wire-in-b" x1="30" y1="${inBY}" x2="70" y2="${inBY}" />`;
+      labels += `<text class="wire-val" id="val-in-b" x="12" y="${inBY + 7}">0</text>`;
+    }
+
+    wires += `<line class="wire" id="wire-out" x1="${outX}" y1="65" x2="220" y2="65" />`;
+    labels += `<text class="wire-val" id="val-out" x="205" y="53">0</text>`;
+
+    const name = `<text class="gate-name" x="${gateName === 'NOT' ? 95 : 90}" y="72">${abbr}</text>`;
+
+    gateSvgEl.innerHTML = wires + shape + name + labels;
+  }
+
+  function updateGateSVG() {
+    const r = rounds[round];
+    const gate = GATES[r.gate];
+    const out = !!gate.fn(...switchState);
+
+    const setWire = (id, on) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('on', on);
+    };
+    const setVal = (id, on) => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = on ? '1' : '0'; el.classList.toggle('on', on); }
+    };
+
+    setWire('wire-in-a', switchState[0]);
+    setVal('val-in-a', switchState[0]);
+    if (gate.inputs === 2) {
+      setWire('wire-in-b', switchState[1]);
+      setVal('val-in-b', switchState[1]);
+    }
+    setWire('wire-out', out);
+    setVal('val-out', out);
+
+    const shapeEl = document.getElementById('gate-shape');
+    if (shapeEl) shapeEl.classList.toggle('on', out);
+    const bubbleEl = document.getElementById('not-bubble');
+    if (bubbleEl) bubbleEl.classList.toggle('on', out);
+  }
+
+  function currentOutput() {
+    const gate = GATES[rounds[round].gate];
+    return !!gate.fn(...switchState);
+  }
+
+  function updateBulb() {
+    const lit = currentOutput();
+    bulbEl.classList.toggle('lit', lit);
+    bulbStateEl.textContent = lit ? 'ENCENDIDA' : 'APAGADA';
+    updateGateSVG();
+  }
+
+  function loadRound() {
+    checked = false;
+    feedbackEl.textContent = '';
+    feedbackEl.className = '';
+    nextBtn.style.display = 'none';
+    checkBtn.disabled = false;
+    checkBtn.style.display = 'inline-block';
+
+    const r = rounds[round];
+    const gate = GATES[r.gate];
+    gateLabelEl.textContent = 'PUERTA: ' + gate.label;
+    goalTextEl.textContent = r.target ? 'SE ENCIENDA 💡' : 'SE QUEDE APAGADA 🌑';
+    highlightGateCard(r.gate);
+    buildGateSVG(r.gate);
+    renderSwitches(gate.inputs);
+
+    roundValEl.textContent = (round + 1) + '/' + TOTAL_ROUNDS;
+    scoreValEl.textContent = score;
+  }
+
+  function check() {
+    const r = rounds[round];
+    const ok = currentOutput() === r.target;
+    checked = true;
+    checkBtn.disabled = true;
+    if (ok) {
+      score += 10;
+      feedbackEl.textContent = '✅ ¡CORRECTO! +10 puntos';
+      feedbackEl.className = 'good';
+    } else {
+      feedbackEl.textContent = '❌ No es así. ¡Mira la tabla y vuelve a intentar la próxima!';
+      feedbackEl.className = 'bad';
+    }
+    scoreValEl.textContent = score;
+    nextBtn.style.display = 'inline-block';
+  }
+
+  function next() {
+    round++;
+    if (round >= TOTAL_ROUNDS) {
+      showEnd();
+    } else {
+      loadRound();
+    }
+  }
+
+  function showEnd() {
+    sceneEl.style.display = 'none';
+    endScreenEl.style.display = 'flex';
+    endSummaryEl.textContent = `Puntaje final: ${score} / ${TOTAL_ROUNDS * 10} puntos`;
+  }
+
+  function startGame() {
+    score = 0;
+    round = 0;
+    buildRounds();
+    sceneEl.style.display = 'flex';
+    endScreenEl.style.display = 'none';
+    loadRound();
+  }
+
+  checkBtn.addEventListener('click', check);
+  nextBtn.addEventListener('click', next);
+  document.getElementById('retry-btn').addEventListener('click', startGame);
+
+  startGame();
+</script>
+</body>
+</html>
