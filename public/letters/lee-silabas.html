@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lee por Sílabas – Juegos de Letras</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background:#0f0f1a;
+      min-height:100vh;
+      display:flex; flex-direction:column; align-items:center;
+      font-family:'Arial Rounded MT Bold', Arial, sans-serif;
+      overflow-y:auto; overflow-x:hidden;
+      user-select:none;
+    }
+
+    canvas#bg { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+    .confetti-layer { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:50; }
+
+    #game {
+      position:relative; z-index:1;
+      display:flex; flex-direction:column;
+      align-items:center; gap:14px;
+      padding:16px 16px 30px;
+      width:100%; max-width:720px;
+    }
+
+    /* ── Top bar ── */
+    #topbar { display:flex; align-items:center; gap:14px; width:100%; }
+    .home-btn {
+      text-decoration:none;
+      background:rgba(255,255,255,0.08);
+      border:2px solid rgba(255,255,255,0.15);
+      border-radius:50%; width:40px; height:40px;
+      display:flex; align-items:center; justify-content:center; font-size:1.2rem;
+      transition:border-color .15s, background .15s;
+    }
+    .home-btn:hover { border-color:#FFD700; background:rgba(255,215,0,.1); }
+    .page-title {
+      color:#FFD700; font-size:18px;
+      text-shadow:0 0 20px rgba(255,215,0,.4), 2px 2px 0 #b8860b;
+      letter-spacing:1px;
+    }
+
+    /* ── HUD ── */
+    #hud { display:flex; gap:26px; align-items:center; }
+    .hud-box { text-align:center; }
+    .hud-label { color:#64748b; font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+    .hud-value { color:#FFD700; font-size:24px; font-weight:bold; text-shadow:0 0 14px rgba(255,215,0,.4); }
+
+    #level-badge {
+      background:rgba(255,215,0,.1); border:2px solid rgba(255,215,0,.3);
+      color:#FFD700; font-size:12px; letter-spacing:2px;
+      padding:4px 16px; border-radius:20px; text-align:center;
+    }
+
+    /* ── Syllable card ── */
+    #word-card {
+      width:100%;
+      background:rgba(255,255,255,.05);
+      border:2px solid rgba(255,255,255,.1);
+      border-radius:26px;
+      padding:22px 14px;
+      display:flex; flex-direction:column;
+      align-items:center; gap:16px;
+      transition:border-color .3s, box-shadow .3s;
+    }
+    #word-card.correct { border-color:#22c55e; box-shadow:0 0 40px rgba(34,197,94,.3); }
+    #word-card.wrong   { border-color:#ef4444; box-shadow:0 0 40px rgba(239,68,68,.25); }
+
+    #card-hint { font-size:12px; letter-spacing:2px; color:#64748b; text-transform:uppercase; text-align:center; }
+
+    #picture {
+      font-size:4rem; height:0; opacity:0; transform:scale(.3);
+      transition:height .3s, opacity .3s, transform .4s cubic-bezier(.3,1.6,.5,1);
+    }
+    #picture.show { height:4.6rem; opacity:1; transform:scale(1); }
+
+    #syllables {
+      display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
+      gap:8px; min-height:120px;
+    }
+    .syl {
+      font-size:clamp(46px, 13vw, 92px); font-weight:bold; color:#fff;
+      letter-spacing:3px;
+      padding:10px 20px;
+      border-radius:22px;
+      background:linear-gradient(135deg, var(--c1), var(--c2));
+      border:3px solid rgba(255,255,255,.2);
+      box-shadow:0 10px 30px -10px rgba(0,0,0,.6);
+      text-shadow:0 3px 0 rgba(0,0,0,.25);
+      cursor:pointer;
+      transition:font-size .25s cubic-bezier(.3,1.5,.5,1), transform .18s, box-shadow .18s, opacity .2s;
+    }
+    .syl:hover { transform:translateY(-3px); }
+    .syl.big {
+      font-size:clamp(72px, 24vw, 160px);
+      border-color:#FFD700;
+      box-shadow:0 0 0 4px rgba(255,215,0,.35), 0 0 40px rgba(255,215,0,.55);
+    }
+    #syllables.focus .syl:not(.big) { opacity:.45; }
+    .dash {
+      font-size:clamp(36px, 9vw, 64px); font-weight:bold; color:#64748b;
+      transition:opacity .3s, width .3s;
+    }
+    #syllables.joined .dash { display:none; }
+    /* Joined word stays on one line: shrink the font by letter count (--len) */
+    #syllables.joined { gap:0; flex-wrap:nowrap; }
+    #syllables.joined .syl { font-size:min(clamp(46px, 13vw, 92px), calc(66vw / (var(--len) * 0.85))); }
+    #syllables.joined .syl { border-radius:0; padding-left:6px; padding-right:6px; cursor:default; }
+    #syllables.joined .syl:first-child { border-radius:22px 0 0 22px; padding-left:20px; }
+    #syllables.joined .syl:last-child  { border-radius:0 22px 22px 0; padding-right:20px; }
+
+    /* ── Word options ── */
+    #question { color:#aac4e0; font-size:15px; letter-spacing:1px; text-align:center; }
+    #options {
+      width:100%;
+      display:grid; grid-template-columns:repeat(4, 1fr); gap:12px;
+    }
+    .opt {
+      border:3px solid rgba(255,255,255,.15); background:rgba(255,255,255,.06);
+      border-radius:22px; padding:14px 8px;
+      font-size:clamp(56px, 14vw, 76px); line-height:1.1;
+      font-family:inherit; cursor:pointer;
+      transition:transform .12s, border-color .12s, background .12s;
+    }
+    .opt:hover:not(:disabled) { transform:scale(1.04); border-color:#60a5fa; background:rgba(59,130,246,.15); }
+    .opt:disabled { cursor:default; }
+    .opt.correct { border-color:#22c55e; background:rgba(34,197,94,.2); transform:scale(1.08); box-shadow:0 0 30px rgba(34,197,94,.4); }
+    .opt.wrong   { border-color:#ef4444; background:rgba(239,68,68,.15); opacity:.45; animation:shake .4s ease; }
+    .opt.faded   { opacity:.35; }
+    @keyframes shake {
+      0%,100%{ transform:translateX(0); }
+      20%{ transform:translateX(-8px); }
+      40%{ transform:translateX(8px); }
+      60%{ transform:translateX(-5px); }
+      80%{ transform:translateX(5px); }
+    }
+
+    /* ── Message ── */
+    #message {
+      font-size:16px; font-weight:bold; letter-spacing:1px;
+      min-height:24px; text-align:center; color:#e2e8f0;
+    }
+    #message.correct { color:#22c55e; }
+    #message.wrong   { color:#f87171; }
+
+    #next-btn {
+      display:none;
+      padding:13px 40px;
+      font-size:1.05rem; font-family:inherit; font-weight:bold; color:#fff;
+      background:rgba(34,197,94,.22);
+      border:3px solid rgba(34,197,94,.5);
+      border-radius:50px; cursor:pointer;
+      transition:transform .12s, background .12s;
+    }
+    #next-btn:hover { transform:scale(1.05); background:rgba(34,197,94,.35); }
+
+    @media (max-width:420px) {
+      #options { grid-template-columns:1fr 1fr; }
+      #hud { gap:16px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas class="confetti-layer" id="confetti"></canvas>
+
+  <div id="game">
+    <div id="topbar">
+      <a class="home-btn" href="index.html" title="Volver">🏠</a>
+      <div class="page-title">LEE POR SÍLABAS</div>
+    </div>
+
+    <div id="hud">
+      <div class="hud-box"><div class="hud-label">Puntos</div><div class="hud-value" id="score">0</div></div>
+      <div class="hud-box"><div class="hud-label">Racha</div><div class="hud-value" id="streak">🔥 0</div></div>
+    </div>
+    <div id="level-badge"></div>
+
+    <div id="word-card">
+      <div id="card-hint">LEE CADA SÍLABA · TOCA UNA SÍLABA PARA AGRANDARLA</div>
+      <div id="picture"></div>
+      <div id="syllables"></div>
+    </div>
+
+    <div id="question">¿QUÉ DIBUJO FORMAN LAS SÍLABAS?</div>
+    <div id="options"></div>
+
+    <div id="message"></div>
+    <button id="next-btn" onclick="nextWord()">SIGUIENTE ▶</button>
+  </div>
+
+  <script>
+    /* Words are stored already split into syllables so the game never has to
+       guess where to cut a word. Accents are kept on the syllable that carries them. */
+    const LEVELS = [
+      { label:'1', desc:'PALABRAS DE 2 SÍLABAS', words:[
+        ['CA-SA','🏠'], ['CA-MA','🛏️'], ['PE-RA','🍐'], ['PA-TO','🦆'], ['GA-TO','🐱'],
+        ['RA-TA','🐀'], ['PE-RRO','🐶'], ['LU-NA','🌙'], ['LO-RO','🦜'], ['SA-PO','🐸'],
+        ['TO-RO','🐂'], ['LO-BO','🐺'], ['MA-NO','✋'], ['BO-CA','👄'], ['VA-CA','🐄'],
+        ['TA-ZA','☕'], ['NI-DO','🪺'], ['MO-TO','🏍️'], ['SO-PA','🍲'], ['RO-SA','🌹'],
+        ['PA-PA','🥔'], ['MO-NO','🐒'], ['GO-TA','💧'], ['DA-DO','🎲'], ['PI-NO','🌲'],
+        ['NU-BE','☁️'], ['LE-CHE','🥛'], ['CO-CO','🥥'], ['PI-ÑA','🍍'], ['BE-SO','💋'],
+      ]},
+      { label:'2', desc:'PALABRAS DE 3 SÍLABAS', words:[
+        ['PE-LO-TA','⚽'], ['CA-MI-SA','👕'], ['ZA-PA-TO','👞'], ['TO-MA-TE','🍅'], ['CA-BA-LLO','🐴'],
+        ['CO-NE-JO','🐰'], ['PA-LO-MA','🕊️'], ['GA-LLI-NA','🐔'], ['BA-NA-NA','🍌'], ['MU-ÑE-CA','🪆'],
+        ['CE-BO-LLA','🧅'], ['PE-PI-NO','🥒'], ['MO-NE-DA','🪙'], ['PI-RA-TA','🏴‍☠️'], ['MA-LE-TA','🧳'],
+        ['PÁ-JA-RO','🐦'], ['GA-LLE-TA','🍪'], ['CO-RO-NA','👑'], ['VEN-TA-NA','🪟'], ['MAN-ZA-NA','🍎'],
+        ['CA-ME-LLO','🐫'], ['HE-LA-DO','🍦'], ['JI-RA-FA','🦒'], ['PA-YA-SO','🤡'], ['BA-LLE-NA','🐋'],
+      ]},
+      { label:'3', desc:'PALABRAS LARGAS Y TRABADAS', words:[
+        ['MA-RI-PO-SA','🦋'], ['TE-LÉ-FO-NO','📞'], ['BI-CI-CLE-TA','🚲'], ['PLÁ-TA-NO','🍌'], ['CO-CO-DRI-LO','🐊'],
+        ['BRU-JA','🧙'], ['PLA-TO','🍽️'], ['GLO-BO','🎈'], ['FRE-SA','🍓'], ['DRA-GÓN','🐉'],
+        ['PRIN-CE-SA','👸'], ['ES-TRE-LLA','⭐'], ['CA-RA-COL','🐌'], ['E-LE-FAN-TE','🐘'], ['CHO-CO-LA-TE','🍫'],
+        ['SAN-DÍ-A','🍉'], ['PAN-TA-LÓN','👖'], ['CAN-GU-RO','🦘'], ['TI-GRE','🐯'], ['CO-HE-TE','🚀'],
+        ['TE-LA-RA-ÑA','🕸️'], ['PLA-YA','🏖️'], ['LI-BRO','📖'], ['FLO-RES','💐'], ['DI-NO-SAU-RIO','🦕'],
+      ]},
+    ].map(l => ({ ...l, words: l.words.map(([s, emoji]) => ({ syl: s.split('-'), word: s.replace(/-/g,''), emoji })) }));
+
+    const TILE_COLORS = [
+      ['#3B82F6','#1D4ED8'], ['#F59E0B','#D97706'], ['#22C55E','#15803D'],
+      ['#EC4899','#BE185D'], ['#8B5CF6','#6D28D9'], ['#f97316','#c2410c'],
+    ];
+    const ADVANCE = 5;
+
+    let score=0, streak=0, levelIdx=0, correctInLevel=0;
+    let usedIdx=[], current=null, answered=true, missed=false;
+
+    function pickWord(){
+      const pool=LEVELS[levelIdx].words;
+      if(usedIdx.length>=pool.length) usedIdx=[];
+      let idx;
+      do { idx=Math.floor(Math.random()*pool.length); } while(usedIdx.includes(idx));
+      usedIdx.push(idx);
+      return pool[idx];
+    }
+
+    /* Tapping a syllable makes it big so the child can focus on it;
+       tapping it again (or another one) shrinks it back. */
+    function toggleBig(tile){
+      if(answered) return;
+      const box=document.getElementById('syllables');
+      const wasBig=tile.classList.contains('big');
+      box.querySelectorAll('.syl.big').forEach(t=>t.classList.remove('big'));
+      if(!wasBig) tile.classList.add('big');
+      box.classList.toggle('focus', !wasBig);
+    }
+
+    /* Distractors that look alike are the ones that make kids actually read:
+       prefer words sharing the first syllable, any syllable, or the same length. */
+    function pickOptions(target){
+      const others=LEVELS[levelIdx].words.filter(w=>w.word!==target.word);
+      const similarity=w=>
+        (w.syl[0]===target.syl[0]?3:0) +
+        (w.syl.some(s=>target.syl.includes(s))?2:0) +
+        (w.syl.length===target.syl.length?1:0) +
+        Math.random()*2.5;
+      const distractors=others.sort((a,b)=>similarity(b)-similarity(a)).slice(0,3);
+      return shuffle([target, ...distractors]);
+    }
+    function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+    function nextWord(){
+      current=pickWord();
+      answered=false; missed=false;
+
+      document.getElementById('next-btn').style.display='none';
+      document.getElementById('word-card').className='';
+      const pic=document.getElementById('picture');
+      pic.className=''; pic.textContent=current.emoji;
+
+      const box=document.getElementById('syllables');
+      box.className=''; box.innerHTML='';
+      current.syl.forEach((s,i)=>{
+        if(i>0){ const d=document.createElement('span'); d.className='dash'; d.textContent='-'; box.appendChild(d); }
+        const t=document.createElement('span');
+        const [c1,c2]=TILE_COLORS[i%TILE_COLORS.length];
+        t.className='syl'; t.textContent=s;
+        t.style.setProperty('--c1',c1); t.style.setProperty('--c2',c2);
+        t.onclick=()=>toggleBig(t);
+        box.appendChild(t);
+      });
+
+      const opts=document.getElementById('options');
+      opts.innerHTML='';
+      pickOptions(current).forEach(w=>{
+        const b=document.createElement('button');
+        b.className='opt'; b.textContent=w.emoji;
+        b.onclick=()=>choose(b, w);
+        opts.appendChild(b);
+      });
+
+      setMsg('LEE LAS SÍLABAS Y ELIGE EL DIBUJO CORRECTO','');
+    }
+
+    function choose(btn, w){
+      if(answered) return;
+      if(w.word!==current.word){
+        btn.classList.add('wrong'); btn.disabled=true;
+        document.getElementById('word-card').className='wrong';
+        missed=true; streak=0;
+        document.getElementById('streak').textContent='🔥 0';
+        setMsg('❌ ESA NO ES — VUELVE A LEER LAS SÍLABAS','wrong');
+        return;
+      }
+
+      answered=true;
+      btn.classList.add('correct');
+      document.querySelectorAll('.opt').forEach(b=>{ b.disabled=true; if(b!==btn) b.classList.add('faded'); });
+      document.getElementById('word-card').className='correct';
+      const box=document.getElementById('syllables');
+      box.querySelectorAll('.syl.big').forEach(t=>t.classList.remove('big'));
+      box.style.setProperty('--len', current.word.length);
+      box.className='joined';
+      document.getElementById('picture').classList.add('show');
+
+      if(!missed){
+        streak++;
+        const bonus=streak>=3?20:10; score+=bonus;
+        const msg=streak>=5?`🏆 ¡RACHA DE ${streak}! +${bonus} PTS`:
+                  streak>=3?`⭐ ¡GENIAL! RACHA DE ${streak}! +${bonus} PTS`:
+                            `✅ ¡MUY BIEN! ${current.syl.join(' - ')} → ${current.word}`;
+        setMsg(msg,'correct');
+        correctInLevel++;
+      } else {
+        score+=5;
+        setMsg(`✅ ¡ESO ES! ${current.syl.join(' - ')} → ${current.word} +5 PTS`,'correct');
+      }
+      document.getElementById('score').textContent=score;
+      document.getElementById('streak').textContent=`🔥 ${streak}`;
+      burst();
+
+      if(correctInLevel>=ADVANCE && levelIdx<LEVELS.length-1){
+        levelIdx++; correctInLevel=0; usedIdx=[]; updateBadge();
+        setTimeout(()=>setMsg(`🚀 ¡NIVEL ${LEVELS[levelIdx].label}! ${LEVELS[levelIdx].desc}`,'correct'),900);
+      }
+      document.getElementById('next-btn').style.display='inline-block';
+    }
+
+    function updateBadge(){
+      const l=LEVELS[levelIdx];
+      document.getElementById('level-badge').textContent=`NIVEL ${l.label} — ${l.desc}`;
+    }
+    function setMsg(t,c){ const e=document.getElementById('message'); e.textContent=t; e.className=c; }
+
+    /* ── Confetti ── */
+    const cf=document.getElementById('confetti'), cctx=cf.getContext('2d');
+    let pieces=[];
+    function burst(){
+      const colors=['#FFD700','#22c55e','#3B82F6','#EC4899','#F59E0B','#8B5CF6'];
+      for(let i=0;i<90;i++) pieces.push({
+        x:cf.width/2, y:cf.height*0.35,
+        vx:(Math.random()-.5)*14, vy:-Math.random()*12-4,
+        s:4+Math.random()*6, c:colors[i%colors.length], r:Math.random()*6, life:90,
+      });
+    }
+    function drawConfetti(){
+      cctx.clearRect(0,0,cf.width,cf.height);
+      pieces=pieces.filter(p=>p.life>0);
+      for(const p of pieces){
+        p.x+=p.vx; p.y+=p.vy; p.vy+=0.35; p.r+=0.2; p.life--;
+        cctx.save(); cctx.translate(p.x,p.y); cctx.rotate(p.r);
+        cctx.globalAlpha=Math.min(1,p.life/30);
+        cctx.fillStyle=p.c; cctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*0.6);
+        cctx.restore();
+      }
+      requestAnimationFrame(drawConfetti);
+    }
+
+    /* ── Background ── */
+    const canvas=document.getElementById('bg'), ctx=canvas.getContext('2d');
+    function resize(){
+      canvas.width=cf.width=window.innerWidth;
+      canvas.height=cf.height=window.innerHeight;
+    }
+    resize(); window.addEventListener('resize', resize);
+
+    const stars=Array.from({length:140},()=>({
+      x:Math.random(), y:Math.random(), r:0.5+Math.random()*1.5,
+      speed:0.00008+Math.random()*0.00015, twinkle:Math.random()*Math.PI*2,
+    }));
+    const floatSyl=['MA','PA','SA','LA','TO','CA','ME','NO','PI','LU','BE','RO'];
+    const floaters=Array.from({length:18},()=>({
+      text:floatSyl[Math.floor(Math.random()*floatSyl.length)],
+      x:Math.random(), y:Math.random(),
+      speed:0.0001+Math.random()*0.0002, size:14+Math.random()*18, alpha:0.04+Math.random()*0.08,
+    }));
+    function drawBg(){
+      const W=canvas.width, H=canvas.height;
+      ctx.fillStyle='#0f0f1a'; ctx.fillRect(0,0,W,H);
+      for(const s of stars){
+        s.twinkle+=s.speed*60;
+        ctx.globalAlpha=0.4+Math.sin(s.twinkle)*0.4;
+        ctx.fillStyle='#ffffff';
+        ctx.beginPath(); ctx.arc(s.x*W,s.y*H,s.r,0,Math.PI*2); ctx.fill();
+      }
+      for(const f of floaters){
+        f.y-=f.speed; if(f.y<-0.05) f.y=1.05;
+        ctx.globalAlpha=f.alpha; ctx.fillStyle='#FFD700';
+        ctx.font=`bold ${f.size}px Arial`; ctx.textAlign='center';
+        ctx.fillText(f.text,f.x*W,f.y*H);
+      }
+      ctx.globalAlpha=1;
+      requestAnimationFrame(drawBg);
+    }
+    drawBg(); drawConfetti();
+
+    updateBadge();
+    nextWord();
+  </script>
+</body>
+</html>
