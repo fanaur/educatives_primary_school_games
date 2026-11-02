@@ -6,6 +6,18 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["server.js"],
       "port": 3000
+    },
+    {
+      "name": "MicaGames-frases",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "PORT=3001 node ../educatives_primary_school_games-frases/server.js"],
+      "port": 3001
+    },
+    {
+      "name": "MicaGames-logica",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "PORT=3002 node ../educatives_primary_school_games-logica/server.js"],
+      "port": 3002
     }
   ]
 }
